@@ -52,12 +52,19 @@ const KanbanListComponent = ({ list, dragHandleProps, onCardClick }: Props) => {
     }
   };
 
+  const hexToRgba = (hex: string, alpha: number) => {
+    if (!hex) return '';
+    if (hex.startsWith('rgba')) return hex;
+    const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+
   const listStyle: React.CSSProperties = list.color
-    ? { background: list.color, minWidth: 280, maxWidth: 280 }
-    : {};
+    ? { background: hexToRgba(list.color, 0.1), minWidth: 280, maxWidth: 280, backdropFilter: 'blur(8px)', borderColor: hexToRgba(list.color, 0.2), borderWidth: '1px' }
+    : { minWidth: 280, maxWidth: 280, background: 'rgba(255, 255, 255, 0.03)', backdropFilter: 'blur(8px)', borderWidth: '1px', borderColor: 'rgba(255, 255, 255, 0.1)' };
 
   return (
-    <div className="kanban-list" style={listStyle}>
+    <div className="kanban-list flex flex-col shadow-sm rounded-lg" style={listStyle}>
       {/* List header */}
       <div className="flex items-center gap-1 mb-2 px-1">
         <div {...dragHandleProps} className="cursor-grab active:cursor-grabbing p-0.5">
@@ -231,7 +238,7 @@ const KanbanListComponent = ({ list, dragHandleProps, onCardClick }: Props) => {
                     {...provided.dragHandleProps}
                     className={snapshot.isDragging ? 'rotate-3 shadow-lg' : ''}
                   >
-                    <KanbanCardComponent card={card} onClick={() => onCardClick(card.id)} />
+                    <KanbanCardComponent card={card} listColor={list.color} onClick={() => onCardClick(card.id)} />
                   </div>
                 )}
               </Draggable>

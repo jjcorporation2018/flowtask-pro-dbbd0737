@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+import { useKanbanStore } from '@/store/kanban-store';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -12,24 +14,36 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+const AppContent = () => {
+  const { cleanupTrash } = useKanbanStore();
+
+  useEffect(() => {
+    cleanupTrash();
+  }, [cleanupTrash]);
+
+  return (
+    <div className="h-screen flex flex-col overflow-hidden">
+      <AppHeader />
+      <div className="flex flex-1 overflow-hidden">
+        <AppSidebar />
+        <Routes>
+          <Route path="/" element={<DashboardPage />} />
+          <Route path="/folder/:folderId" element={<FolderPage />} />
+          <Route path="/board/:boardId" element={<BoardPage />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </div>
+    </div>
+  );
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <div className="h-screen flex flex-col overflow-hidden">
-          <AppHeader />
-          <div className="flex flex-1 overflow-hidden">
-            <AppSidebar />
-            <Routes>
-              <Route path="/" element={<DashboardPage />} />
-              <Route path="/folder/:folderId" element={<FolderPage />} />
-              <Route path="/board/:boardId" element={<BoardPage />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </div>
-        </div>
+        <AppContent />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

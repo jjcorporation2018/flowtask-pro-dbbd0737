@@ -86,7 +86,13 @@ export interface Card {
   completed: boolean;
   archived: boolean;
   trashed: boolean;
+  trashedAt?: string; // ISO string when sent to trash
   assignee?: string;
+  automationUndoAction?: {
+    previousListId: string;
+    timestamp: number;
+    message: string;
+  };
   attachments: Attachment[];
   timeEntries: TimeEntry[];
   estimatedTime?: number; // minutes

@@ -92,21 +92,28 @@ const BoardPage = () => {
         previousPosition: source.index,
       };
 
+      const undoActionPayload = {
+        previousListId: source.droppableId,
+        timestamp: Date.now(),
+        message: 'Ação automática'
+      };
+
       switch (destList.automation.type) {
         case 'archive':
-          updateCard(cardId, { archived: true });
+          updateCard(cardId, { archived: true, automationUndoAction: { ...undoActionPayload, message: 'Arquivado automaticamente' } });
           setUndoAction({ ...undoBase, message: `"${card.title}" foi arquivado`, type: 'archived' });
           break;
         case 'trash':
-          updateCard(cardId, { trashed: true });
+          updateCard(cardId, { trashed: true, automationUndoAction: { ...undoActionPayload, message: 'Movido para lixeira automaticamente' } });
           setUndoAction({ ...undoBase, message: `"${card.title}" foi enviado para lixeira`, type: 'trashed' });
           break;
         case 'move-to-board':
           if (destList.automation.targetBoardId) {
             const targetBoardLists = store.lists.filter(l => l.boardId === destList.automation!.targetBoardId).sort((a, b) => a.position - b.position);
             if (targetBoardLists.length > 0) {
-              moveCard(cardId, targetBoardLists[0].id, 0);
               const targetBoard = boards.find(b => b.id === destList.automation!.targetBoardId);
+              updateCard(cardId, { automationUndoAction: { ...undoActionPayload, message: `Movido automaticamente para ${targetBoard?.name}` } });
+              moveCard(cardId, targetBoardLists[0].id, 0);
               setUndoAction({ ...undoBase, message: `"${card.title}" movido para ${targetBoard?.name || 'outro board'}`, type: 'moved' });
             }
           }
@@ -115,8 +122,19 @@ const BoardPage = () => {
     }
   };
 
+  const hexToRgba = (hex: string | undefined, alpha: number) => {
+    if (!hex) return 'rgba(0,0,0,0)';
+    if (hex.startsWith('rgba')) return hex;
+    const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+
+  const boardStyle = board.backgroundImage
+    ? { background: `url(${board.backgroundImage}) center/cover` }
+    : { background: `linear-gradient(to bottom right, ${hexToRgba(board.backgroundColor, 0.15)}, rgba(0,0,0,0.8))` };
+
   return (
-    <div className="flex-1 flex flex-col overflow-hidden relative" style={{ background: board.backgroundImage ? `url(${board.backgroundImage}) center/cover` : board.backgroundColor }}>
+    <div className="flex-1 flex flex-col overflow-hidden relative" style={boardStyle}>
       {/* Board header */}
       <div className="flex items-center gap-3 px-4 py-2 bg-black/20">
         {folder && (

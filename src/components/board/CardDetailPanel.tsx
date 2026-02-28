@@ -31,7 +31,7 @@ const SECTION_LABELS: Record<string, { icon: React.ReactNode; label: string }> =
 
 const CardDetailPanel = ({ cardId, onClose }: Props) => {
   const {
-    cards, labels, members, lists, boards, updateCard, deleteCard,
+    cards, labels, members, lists, boards, updateCard, deleteCard, moveCard,
     addChecklistItem, toggleChecklistItem, deleteChecklistItem,
     addComment, startTimer, stopTimer, resetTimer,
     addLabel, updateLabel, deleteLabel,
@@ -562,12 +562,24 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
 
             {/* Actions */}
             <div className="pt-4 border-t border-border flex flex-wrap gap-2">
+              {card.automationUndoAction && (
+                <button onClick={() => {
+                  updateCard(cardId, { archived: false, trashed: false, automationUndoAction: undefined });
+                  moveCard(cardId, card.automationUndoAction!.previousListId, 0);
+                  onClose();
+                }}
+                  className="flex items-center gap-2 text-xs text-primary bg-primary/10 hover:bg-primary/20 px-3 py-2 rounded transition-colors mr-auto"
+                  title={card.automationUndoAction.message}>
+                  <Undo2 className="h-3.5 w-3.5" /> Desfazer Automação
+                </button>
+              )}
+
               <button onClick={() => {
                 updateCard(cardId, { archived: true });
                 if (list) setUndoAction({ cardId, previousListId: list.id, previousPosition: card.position, message: `"${card.title}" foi arquivado`, type: 'archived' });
                 onClose();
               }}
-                className="flex items-center gap-2 text-xs text-muted-foreground hover:bg-secondary px-3 py-2 rounded transition-colors">
+                className={`flex items-center gap-2 text-xs text-muted-foreground hover:bg-secondary px-3 py-2 rounded transition-colors ${!card.automationUndoAction ? 'ml-auto' : ''}`}>
                 <Archive className="h-3.5 w-3.5" /> Arquivar
               </button>
               <button onClick={() => {
@@ -580,7 +592,7 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
               </button>
               {card.trashed && (
                 <button onClick={() => { deleteCard(cardId); onClose(); }}
-                  className="flex items-center gap-2 text-xs text-destructive hover:bg-destructive/10 px-3 py-2 rounded transition-colors ml-auto">
+                  className="flex items-center gap-2 text-xs text-destructive hover:bg-destructive/10 px-3 py-2 rounded transition-colors">
                   <Trash2 className="h-3.5 w-3.5" /> Excluir permanentemente
                 </button>
               )}

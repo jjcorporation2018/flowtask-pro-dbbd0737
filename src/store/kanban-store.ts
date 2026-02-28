@@ -38,6 +38,7 @@ interface KanbanState {
   deleteCard: (id: string) => void;
   moveCard: (cardId: string, toListId: string, newPosition: number) => void;
   reorderCards: (listId: string, cardIds: string[]) => void;
+  cleanupTrash: () => void;
   // checklist
   addChecklistItem: (cardId: string, text: string) => void;
   toggleChecklistItem: (cardId: string, itemId: string) => void;
@@ -161,7 +162,17 @@ export const useKanbanStore = create<KanbanState>()(
         };
       }),
       updateCard: (id, data) => set(s => ({
-        cards: s.cards.map(c => c.id === id ? { ...c, ...data } : c)
+        cards: s.cards.map(c => {
+          if (c.id === id) {
+            const isTrashing = data.trashed === true && !c.trashed;
+            return {
+              ...c,
+              ...data,
+              trashedAt: isTrashing ? new Date().toISOString() : (data.trashed === false ? undefined : c.trashedAt)
+            };
+          }
+          return c;
+        })
       })),
       deleteCard: (id) => set(s => ({ cards: s.cards.filter(c => c.id !== id) })),
       moveCard: (cardId, toListId, newPosition) => set(s => ({
@@ -174,6 +185,16 @@ export const useKanbanStore = create<KanbanState>()(
           return idx >= 0 ? { ...c, position: idx } : c;
         })
       })),
+      cleanupTrash: () => set(s => {
+        const threshold = new Date();
+        threshold.setDate(threshold.getDate() - 15);
+        return {
+          cards: s.cards.filter(c => {
+            if (!c.trashed || !c.trashedAt) return true;
+            return new Date(c.trashedAt) >= threshold;
+          })
+        };
+      }),
 
       // Checklist
       addChecklistItem: (cardId, text) => set(s => ({
