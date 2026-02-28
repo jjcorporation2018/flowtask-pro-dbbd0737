@@ -11,6 +11,8 @@ interface KanbanState {
   cards: Card[];
   labels: Label[];
   isDark: boolean;
+  globalSectionOrder: string[];
+  setGlobalSectionOrder: (order: string[]) => void;
   toggleTheme: () => void;
   // folders
   addFolder: (name: string, color?: string) => void;
@@ -56,6 +58,9 @@ export const useKanbanStore = create<KanbanState>()(
       cards: [],
       labels: [...DEFAULT_LABELS],
       isDark: window.matchMedia('(prefers-color-scheme: dark)').matches,
+      globalSectionOrder: ['summary', 'labels', 'assignee', 'dates', 'estimated', 'description', 'attachments', 'checklist', 'timer', 'comments'],
+
+      setGlobalSectionOrder: (order) => set({ globalSectionOrder: order }),
 
       toggleTheme: () => set(s => {
         const next = !s.isDark;
@@ -126,7 +131,6 @@ export const useKanbanStore = create<KanbanState>()(
             labels: [], checklist: [], comments: [], completed: false,
             archived: false, trashed: false,
             attachments: [], timeEntries: [], createdAt: new Date().toISOString(),
-            sectionOrder: ['summary', 'labels', 'assignee', 'dates', 'estimated', 'description', 'attachments', 'checklist', 'timer', 'comments'],
           }]
         };
       }),

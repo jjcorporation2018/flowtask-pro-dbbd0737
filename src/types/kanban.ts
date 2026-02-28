@@ -82,7 +82,6 @@ export interface Card {
   attachments: Attachment[];
   timeEntries: TimeEntry[];
   estimatedTime?: number; // minutes
-  sectionOrder?: string[]; // modular section ordering
   createdAt: string;
 }
 

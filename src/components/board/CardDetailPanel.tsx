@@ -35,6 +35,7 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
     addChecklistItem, toggleChecklistItem, deleteChecklistItem,
     addComment, startTimer, stopTimer, resetTimer,
     addLabel, updateLabel, deleteLabel,
+    globalSectionOrder, setGlobalSectionOrder,
   } = useKanbanStore();
   const card = cards.find(c => c.id === cardId);
   const list = card ? lists.find(l => l.id === card.listId) : null;
@@ -49,7 +50,6 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
   const [startDate, setStartDate] = useState(card?.startDate || '');
   const [assignee, setAssignee] = useState(card?.assignee || '');
   const [estimatedTime, setEstimatedTime] = useState(card?.estimatedTime?.toString() || '');
-  const [sectionOrder, setSectionOrder] = useState<string[]>(card?.sectionOrder || DEFAULT_SECTIONS);
 
   // Label editor
   const [editingLabel, setEditingLabel] = useState(false);
@@ -122,11 +122,6 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
   };
   const handleColorHexChange = (hex: string) => {
     setLabelHex(hex);
-    if (/^#[0-9a-fA-F]{6}$/.test(hex)) setLabelColor(hex);
-  };
-  const handleSectionReorder = (newOrder: string[]) => {
-    setSectionOrder(newOrder);
-    updateCard(cardId, { sectionOrder: newOrder });
   };
   const execCommand = (cmd: string, value?: string) => {
     document.execCommand(cmd, false, value);
@@ -511,8 +506,8 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
             )}
 
             {/* Modular sections - reorderable */}
-            <Reorder.Group axis="y" values={sectionOrder} onReorder={handleSectionReorder} className="space-y-5">
-              {sectionOrder.map(section => (
+            <Reorder.Group axis="y" values={globalSectionOrder} onReorder={setGlobalSectionOrder} className="space-y-5">
+              {globalSectionOrder.map(section => (
                 <Reorder.Item key={section} value={section} className="relative group">
                   <div className="absolute -left-5 top-1 opacity-0 group-hover:opacity-50 cursor-grab">
                     <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
