@@ -1,10 +1,11 @@
 import { Droppable, Draggable, DraggableProvidedDragHandleProps } from '@hello-pangea/dnd';
 import { useKanbanStore } from '@/store/kanban-store';
 import { KanbanList } from '@/types/kanban';
-import { MoreHorizontal, Plus, Trash2, GripVertical, Palette, Zap, ArrowRight, Archive, Trash, SmilePlus } from 'lucide-react';
+import { MoreHorizontal, Plus, Trash2, GripVertical, Palette, Zap, ArrowRight, Archive, SmilePlus, CheckSquare } from 'lucide-react';
 import { useState } from 'react';
 import KanbanCardComponent from './KanbanCard';
 import { BOARD_COLORS } from '@/types/kanban';
+import { ConfirmAction } from '@/components/ui/ConfirmAction';
 
 interface Props {
   list: KanbanList;
@@ -13,10 +14,43 @@ interface Props {
 }
 
 const KanbanListComponent = ({ list, dragHandleProps, onCardClick }: Props) => {
-  const { cards, boards, addCard, deleteList, updateList } = useKanbanStore();
+  const { cards, boards, addCard, deleteList, updateList, boardPreferences, labels } = useKanbanStore();
+  const prefs = boardPreferences[list.boardId] || { viewMode: 'kanban', sortBy: 'default' };
+
   const listCards = cards
     .filter(c => c.listId === list.id && !c.archived && !c.trashed)
-    .sort((a, b) => a.position - b.position);
+    .sort((a, b) => {
+      if (prefs.sortBy === 'dueDate') {
+        if (!a.dueDate && !b.dueDate) return a.position - b.position;
+        if (!a.dueDate) return 1;
+        if (!b.dueDate) return -1;
+        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+      }
+      if (prefs.sortBy === 'assignee') {
+        if (!a.assignee && !b.assignee) return a.position - b.position;
+        if (!a.assignee) return 1;
+        if (!b.assignee) return -1;
+        return a.assignee.localeCompare(b.assignee);
+      }
+      if (prefs.sortBy === 'priority') {
+        const getPrio = (card: any) => {
+          const cardLabels = labels.filter(l => card.labels.includes(l.id));
+          if (cardLabels.some(l => l.name.toLowerCase().includes('urgent') || l.color === '#ef4444')) return 1; // Urgente
+          if (cardLabels.some(l => l.name.toLowerCase().includes('important') || l.color === '#f97316')) return 2; // Importante
+          if (cardLabels.some(l => l.color === '#eab308')) return 3; // Warning / Em progresso
+          if (cardLabels.some(l => l.color === '#22c55e')) return 5; // Success / Concluído
+          if (cardLabels.length > 0) return 4;
+          return 99;
+        };
+        const pA = getPrio(a);
+        const pB = getPrio(b);
+        if (pA !== pB) return pA - pB;
+        return a.position - b.position;
+      }
+      return a.position - b.position;
+    });
+
+  const isDragDisabled = prefs.sortBy !== 'default';
 
   const [adding, setAdding] = useState(false);
   const [newTitle, setNewTitle] = useState('');
@@ -27,6 +61,7 @@ const KanbanListComponent = ({ list, dragHandleProps, onCardClick }: Props) => {
   const [showAutomation, setShowAutomation] = useState(false);
   const [colorHex, setColorHex] = useState(list.color || '');
   const [showIconPicker, setShowIconPicker] = useState(false);
+  const [milestoneInput, setMilestoneInput] = useState('');
 
   const ICONS = [
     '📋', '📝', '✅', '☑️', '✔️', '❌', '🚫', '⚠️', '❗', '❓',
@@ -63,8 +98,21 @@ const KanbanListComponent = ({ list, dragHandleProps, onCardClick }: Props) => {
     ? { background: hexToRgba(list.color, 0.1), minWidth: 280, maxWidth: 280, backdropFilter: 'blur(8px)', borderColor: hexToRgba(list.color, 0.2), borderWidth: '1px' }
     : { minWidth: 280, maxWidth: 280, background: 'rgba(255, 255, 255, 0.03)', backdropFilter: 'blur(8px)', borderWidth: '1px', borderColor: 'rgba(255, 255, 255, 0.1)' };
 
+  const toggleAutomationType = (type: 'archive' | 'trash' | 'move-to-board' | 'mark-completed' | 'mark-milestone', targetBoardId?: string, targetMilestoneTitle?: string) => {
+    const current = list.automations || [];
+    const existsIndex = current.findIndex(a => a.type === type && a.targetBoardId === targetBoardId && a.targetMilestoneTitle === targetMilestoneTitle);
+    let updated;
+    if (existsIndex >= 0) {
+      updated = current.filter((_, i) => i !== existsIndex);
+    } else {
+      updated = [...current, { type, targetBoardId, targetMilestoneTitle }];
+    }
+    updateList(list.id, { automations: updated.length > 0 ? updated : undefined });
+    setMilestoneInput('');
+  };
+
   return (
-    <div className="kanban-list flex flex-col shadow-sm rounded-lg" style={listStyle}>
+    <div className="kanban-list flex flex-col shadow-sm rounded-lg max-h-full" style={listStyle}>
       {/* List header */}
       <div className="flex items-center gap-1 mb-2 px-1">
         <div {...dragHandleProps} className="cursor-grab active:cursor-grabbing p-0.5">
@@ -88,9 +136,10 @@ const KanbanListComponent = ({ list, dragHandleProps, onCardClick }: Props) => {
             {list.title}
           </h3>
         )}
-        {list.automation && (
-          <span className="text-[9px] px-1 py-0.5 rounded bg-accent/20 text-accent" title={`Automação: ${list.automation.type}`}>
-            <Zap className="h-2.5 w-2.5 inline" />
+        {list.automations && list.automations.length > 0 && (
+          <span className="flex items-center gap-0.5 text-[9px] px-1 py-0.5 rounded bg-accent/20 text-accent" title={`Automações ativas: ${list.automations.length}`}>
+            <Zap className="h-2.5 w-2.5" />
+            <span className="font-bold">{list.automations.length}</span>
           </span>
         )}
         <span className="text-[10px] text-muted-foreground">{listCards.length}</span>
@@ -121,12 +170,25 @@ const KanbanListComponent = ({ list, dragHandleProps, onCardClick }: Props) => {
                   <Zap className="h-3 w-3" /> Automação
                 </button>
                 <hr className="my-1 border-border" />
-                <button
-                  onClick={() => { deleteList(list.id); setShowMenu(false); }}
-                  className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-destructive hover:bg-secondary transition-colors"
+                <ConfirmAction
+                  title="Arquivar Lista?"
+                  description="A lista será arquivada e não aparecerá no board princial, mas pode ser restaurada acessando os itens arquivados."
+                  onConfirm={() => { updateList(list.id, { archived: true }); setShowMenu(false); }}
                 >
-                  <Trash2 className="h-3 w-3" /> Excluir lista
-                </button>
+                  <button className="flex items-center gap-2 w-full px-3 py-1.5 text-xs hover:bg-secondary transition-colors text-muted-foreground">
+                    <Archive className="h-3 w-3" /> Arquivar lista
+                  </button>
+                </ConfirmAction>
+                <ConfirmAction
+                  title="Mover para a Lixeira?"
+                  description="A lista será movida para a lixeira. Você poderá restaurá-la mais tarde na visualização da lixeira."
+                  onConfirm={() => { updateList(list.id, { trashed: true }); setShowMenu(false); }}
+                  destructive
+                >
+                  <button className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-destructive hover:bg-destructive/10 transition-colors">
+                    <Trash2 className="h-3 w-3" /> Enviar para lixeira
+                  </button>
+                </ConfirmAction>
               </div>
             </>
           )}
@@ -187,24 +249,41 @@ const KanbanListComponent = ({ list, dragHandleProps, onCardClick }: Props) => {
             <p className="text-[10px] text-muted-foreground font-semibold">Automação da Lista</p>
             <p className="text-[10px] text-muted-foreground">Ao mover um cartão para esta lista:</p>
             <div className="space-y-1">
-              <button onClick={() => { updateList(list.id, { automation: { type: 'archive' } }); setShowAutomation(false); }}
-                className={`flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-secondary ${list.automation?.type === 'archive' ? 'bg-secondary ring-1 ring-primary' : ''}`}>
-                <Archive className="h-3 w-3" /> Arquivar automaticamente
+              <button onClick={() => toggleAutomationType('mark-completed')}
+                className={`flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-secondary transition-colors ${list.automations?.some(a => a.type === 'mark-completed') ? 'bg-secondary ring-1 ring-primary font-medium' : ''}`}>
+                <CheckSquare className="h-3 w-3" /> Marcar como concluído
               </button>
-              <button onClick={() => { updateList(list.id, { automation: { type: 'trash' } }); setShowAutomation(false); }}
-                className={`flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-secondary ${list.automation?.type === 'trash' ? 'bg-secondary ring-1 ring-primary' : ''}`}>
-                <Trash className="h-3 w-3" /> Enviar para lixeira
+
+              <div className="flex items-center gap-1 w-full bg-secondary/50 rounded pr-1 mt-1">
+                <button onClick={() => { if (milestoneInput.trim()) toggleAutomationType('mark-milestone', undefined, milestoneInput.trim()); }}
+                  className={`flex flex-1 items-center gap-2 px-2 py-1.5 text-[10px] hover:bg-secondary transition-colors ${list.automations?.some(a => a.type === 'mark-milestone') ? 'text-primary font-medium' : ''}`}
+                >
+                  <CheckSquare className="h-3 w-3" /> Concluir Etapa:
+                </button>
+                <input value={milestoneInput} onChange={e => setMilestoneInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && milestoneInput.trim()) toggleAutomationType('mark-milestone', undefined, milestoneInput.trim()); }} placeholder="Ex: Planejamento" className="w-[100px] bg-background px-1.5 py-1 text-[10px] rounded border border-border outline-none focus:border-primary" />
+              </div>
+
+              {list.automations?.filter(a => a.type === 'mark-milestone').map(a => (
+                <div key={a.targetMilestoneTitle} className="flex items-center justify-between px-2 py-1 text-[10px] bg-secondary/80 rounded mt-1 border border-border">
+                  <span className="text-foreground flex items-center gap-1 font-medium"><CheckSquare className="h-2.5 w-2.5 text-primary" /> {a.targetMilestoneTitle}</span>
+                  <button onClick={() => toggleAutomationType('mark-milestone', undefined, a.targetMilestoneTitle)} className="text-destructive hover:text-destructive/80 p-0.5"><Trash2 className="h-2.5 w-2.5" /></button>
+                </div>
+              ))}
+              <button onClick={() => toggleAutomationType('archive')}
+                className={`flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-secondary transition-colors ${list.automations?.some(a => a.type === 'archive') ? 'bg-secondary ring-1 ring-primary font-medium' : ''}`}>
+                <Archive className="h-3 w-3" /> Arquivar cartão
+              </button>
+              <button onClick={() => toggleAutomationType('trash')}
+                className={`flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-secondary transition-colors text-destructive hover:bg-destructive/10 ${list.automations?.some(a => a.type === 'trash') ? 'bg-destructive/10 ring-1 ring-destructive font-medium' : ''}`}>
+                <Trash2 className="h-3 w-3" /> Enviar para lixeira
               </button>
               {boards.filter(b => b.id !== list.boardId).length > 0 && (
                 <>
-                  <p className="text-[9px] text-muted-foreground mt-1">Mover para outro board:</p>
-                  {boards.filter(b => {
-                    // Get boards from any folder (cross-board move)
-                    return b.id !== list.boardId;
-                  }).map(b => (
+                  <p className="text-[9px] text-muted-foreground mt-2 mb-1 px-1">Mover para outro board:</p>
+                  {boards.filter(b => b.id !== list.boardId).map(b => (
                     <button key={b.id}
-                      onClick={() => { updateList(list.id, { automation: { type: 'move-to-board', targetBoardId: b.id } }); setShowAutomation(false); }}
-                      className={`flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-secondary ${list.automation?.type === 'move-to-board' && list.automation.targetBoardId === b.id ? 'bg-secondary ring-1 ring-primary' : ''}`}>
+                      onClick={() => { toggleAutomationType('move-to-board', b.id); }}
+                      className={`flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-secondary transition-colors ${list.automations?.some(a => a.type === 'move-to-board' && a.targetBoardId === b.id) ? 'bg-secondary ring-1 ring-primary font-medium' : ''}`}>
                       <ArrowRight className="h-3 w-3" />
                       <span className="w-3 h-3 rounded-sm" style={{ background: b.backgroundColor }} />
                       {b.name}
@@ -212,9 +291,11 @@ const KanbanListComponent = ({ list, dragHandleProps, onCardClick }: Props) => {
                   ))}
                 </>
               )}
-              {list.automation && (
-                <button onClick={() => { updateList(list.id, { automation: undefined }); setShowAutomation(false); }}
-                  className="w-full text-[10px] text-destructive hover:underline mt-1">Remover automação</button>
+              {list.automations && list.automations.length > 0 && (
+                <button onClick={() => { updateList(list.id, { automations: undefined }); setShowAutomation(false); }}
+                  className="w-full text-[10px] text-muted-foreground hover:text-foreground hover:underline mt-2 pt-2 border-t border-border/50">
+                  Remover todas automações
+                </button>
               )}
             </div>
           </div>
@@ -222,60 +303,63 @@ const KanbanListComponent = ({ list, dragHandleProps, onCardClick }: Props) => {
       )}
 
       {/* Cards */}
-      <Droppable droppableId={list.id} type="CARD">
-        {(provided, snapshot) => (
-          <div
-            ref={provided.innerRef}
-            {...provided.droppableProps}
-            className={`min-h-[4px] rounded transition-colors ${snapshot.isDraggingOver ? 'bg-kanban-drag/10' : ''}`}
-          >
-            {listCards.map((card, index) => (
-              <Draggable key={card.id} draggableId={card.id} index={index}>
-                {(provided, snapshot) => (
-                  <div
-                    ref={provided.innerRef}
-                    {...provided.draggableProps}
-                    {...provided.dragHandleProps}
-                    className={snapshot.isDragging ? 'rotate-3 shadow-lg' : ''}
-                  >
-                    <KanbanCardComponent card={card} listColor={list.color} onClick={() => onCardClick(card.id)} />
-                  </div>
-                )}
-              </Draggable>
-            ))}
-            {provided.placeholder}
-          </div>
-        )}
-      </Droppable>
+      <div className="flex-1 flex flex-col overflow-y-auto overflow-x-hidden custom-scrollbar">
+        <Droppable droppableId={list.id} type="CARD">
+          {(provided, snapshot) => (
+            <div
+              ref={provided.innerRef}
+              {...provided.droppableProps}
+              className={`flex-1 min-h-[100px] h-full p-1.5 rounded-md flex flex-col gap-2 transition-colors duration-200 ${snapshot.isDraggingOver ? 'bg-primary/10 ring-1 ring-primary/30' : ''}`}
+            >
+              {listCards.map((card, index) => (
+                <Draggable key={card.id} draggableId={card.id} index={index} isDragDisabled={isDragDisabled}>
+                  {(provided, snapshot) => (
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.draggableProps}
+                      {...provided.dragHandleProps}
+                      className={snapshot.isDragging ? 'opacity-95 scale-[1.02] rotate-1 shadow-2xl ring-2 ring-primary ring-offset-1 z-50' : 'transition-shadow shadow-sm hover:shadow'}
+                    >
+                      <KanbanCardComponent card={card} listColor={list.color} onClick={() => onCardClick(card.id)} />
+                    </div>
+                  )}
+                </Draggable>
+              ))}
+              {provided.placeholder}
+            </div>
+          )}
+        </Droppable>
+      </div>
 
-      {/* Add card */}
-      {adding ? (
-        <div className="mt-1">
-          <textarea
-            autoFocus
-            value={newTitle}
-            onChange={e => setNewTitle(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAdd(); } if (e.key === 'Escape') setAdding(false); }}
-            placeholder="Título do cartão..."
-            className="w-full bg-card rounded px-2 py-1.5 text-xs outline-none border border-border focus:border-primary resize-none"
-            rows={2}
-          />
-          <div className="flex gap-2 mt-1">
-            <button onClick={handleAdd} className="bg-primary text-primary-foreground px-3 py-1 rounded text-xs font-medium hover:bg-primary/90 transition-colors">
-              Adicionar
-            </button>
-            <button onClick={() => setAdding(false)} className="text-xs text-muted-foreground hover:text-foreground">×</button>
+      <div className="p-1">
+        {adding ? (
+          <div className="mt-1">
+            <textarea
+              autoFocus
+              value={newTitle}
+              onChange={e => setNewTitle(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAdd(); } if (e.key === 'Escape') setAdding(false); }}
+              placeholder="Título do cartão..."
+              className="w-full bg-card rounded px-2 py-1.5 text-xs outline-none border border-border focus:border-primary resize-none"
+              rows={2}
+            />
+            <div className="flex gap-2 mt-1 px-1 pb-1">
+              <button onClick={handleAdd} className="bg-primary text-primary-foreground px-3 py-1 rounded text-xs font-medium hover:bg-primary/90 transition-colors">
+                Adicionar
+              </button>
+              <button onClick={() => setAdding(false)} className="text-xs text-muted-foreground hover:text-foreground">×</button>
+            </div>
           </div>
-        </div>
-      ) : (
-        <button
-          onClick={() => setAdding(true)}
-          className="flex items-center gap-1 w-full px-2 py-1.5 mt-1 rounded text-xs text-muted-foreground hover:bg-secondary/50 transition-colors"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Adicionar cartão
-        </button>
-      )}
+        ) : (
+          <button
+            onClick={() => setAdding(true)}
+            className="flex items-center gap-1 w-full px-2 py-1.5 rounded text-xs text-muted-foreground hover:bg-secondary/50 transition-colors"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Adicionar cartão
+          </button>
+        )}
+      </div>
     </div>
   );
 };

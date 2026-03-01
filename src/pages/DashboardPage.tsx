@@ -13,10 +13,15 @@ const Dashboard = () => {
   const [filterLabel, setFilterLabel] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
 
+  const activeFolders = folders.filter(f => !f.archived && !f.trashed);
+  const activeBoards = boards.filter(b => !b.archived && !b.trashed);
+  const activeLists = lists.filter(l => !l.archived && !l.trashed);
+  const activeCards = cards.filter(c => !c.archived && !c.trashed);
+
   const filteredCards = useMemo(() => {
-    let result = cards;
+    let result = activeCards;
     if (filterBoard !== 'all') {
-      const boardLists = lists.filter(l => l.boardId === filterBoard).map(l => l.id);
+      const boardLists = activeLists.filter(l => l.boardId === filterBoard).map(l => l.id);
       result = result.filter(c => boardLists.includes(c.listId));
     }
     if (filterLabel !== 'all') {
@@ -26,7 +31,7 @@ const Dashboard = () => {
     if (filterStatus === 'pending') result = result.filter(c => !c.completed);
     if (filterStatus === 'overdue') result = result.filter(c => c.dueDate && new Date(c.dueDate) < new Date() && !c.completed);
     return result;
-  }, [cards, lists, filterBoard, filterLabel, filterStatus]);
+  }, [activeCards, activeLists, filterBoard, filterLabel, filterStatus]);
 
   const totalCards = filteredCards.length;
   const completedCards = filteredCards.filter(c => c.completed).length;
@@ -37,7 +42,7 @@ const Dashboard = () => {
   const days = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
   const weekData = days.map((d, i) => ({
     day: d,
-    criadas: Math.max(0, Math.floor(cards.length / 7) + (i % 3)),
+    criadas: Math.max(0, Math.floor(activeCards.length / 7) + (i % 3)),
     concluídas: Math.max(0, Math.floor(completedCards / 7) + ((i + 1) % 3)),
   }));
 
@@ -50,14 +55,14 @@ const Dashboard = () => {
   const cardsByBoard = useMemo(() => {
     const map = new Map<string, typeof cards>();
     filteredCards.forEach(card => {
-      const list = lists.find(l => l.id === card.listId);
+      const list = activeLists.find(l => l.id === card.listId);
       if (!list) return;
       const boardId = list.boardId;
       if (!map.has(boardId)) map.set(boardId, []);
       map.get(boardId)!.push(card);
     });
     return map;
-  }, [filteredCards, lists]);
+  }, [filteredCards, activeLists]);
 
   const stats = [
     { label: 'Total de Tarefas', value: totalCards, icon: BarChart3, color: 'text-primary' },
@@ -80,7 +85,7 @@ const Dashboard = () => {
           <select value={filterBoard} onChange={e => setFilterBoard(e.target.value)}
             className="bg-secondary rounded px-2 py-1 text-xs outline-none border border-border">
             <option value="all">Todos os Boards</option>
-            {boards.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            {activeBoards.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
           <select value={filterLabel} onChange={e => setFilterLabel(e.target.value)}
             className="bg-secondary rounded px-2 py-1 text-xs outline-none border border-border">
@@ -166,7 +171,7 @@ const Dashboard = () => {
           </h2>
           <div className="grid md:grid-cols-2 gap-4">
             {Array.from(cardsByBoard.entries()).map(([boardId, boardCards]) => {
-              const board = boards.find(b => b.id === boardId);
+              const board = activeBoards.find(b => b.id === boardId);
               if (!board) return null;
               const pending = boardCards.filter(c => !c.completed).length;
               const done = boardCards.filter(c => c.completed).length;
@@ -196,10 +201,10 @@ const Dashboard = () => {
             Suas Pastas
           </h2>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {folders.map(folder => {
-              const folderBoards = boards.filter(b => b.folderId === folder.id);
-              const folderCards = cards.filter(c => {
-                const list = lists.find(l => l.id === c.listId);
+            {activeFolders.map(folder => {
+              const folderBoards = activeBoards.filter(b => b.folderId === folder.id);
+              const folderCards = activeCards.filter(c => {
+                const list = activeLists.find(l => l.id === c.listId);
                 return list && folderBoards.some(b => b.id === list.boardId);
               });
               return (
@@ -215,7 +220,7 @@ const Dashboard = () => {
                 </Link>
               );
             })}
-            {folders.length === 0 && (
+            {activeFolders.length === 0 && (
               <p className="text-xs text-muted-foreground col-span-full text-center py-8">
                 Use a barra lateral para criar sua primeira pasta 👈
               </p>

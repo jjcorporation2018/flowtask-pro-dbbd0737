@@ -5,14 +5,18 @@ import { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import KanbanListComponent from '@/components/board/KanbanList';
 import CardDetailPanel from '@/components/board/CardDetailPanel';
+import { BoardListView } from '@/components/board/BoardListView';
+import { BoardCalendarView } from '@/components/board/BoardCalendarView';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ConfirmAction } from '@/components/ui/ConfirmAction';
 
 const BoardPage = () => {
   const { boardId } = useParams<{ boardId: string }>();
   const {
-    boards, lists, folders, cards, members,
-    addList, reorderLists, moveCard, reorderCards, updateCard, deleteCard,
-    undoAction, setUndoAction, executeUndo, clearUndoAction
+    boards, lists, folders, cards, members, uiZoom,
+    addList, updateList, deleteList, reorderLists, moveCard, reorderCards, updateCard, deleteCard,
+    undoAction, setUndoAction, executeUndo, clearUndoAction,
+    boardPreferences, setBoardPreference
   } = useKanbanStore();
   const board = boards.find(b => b.id === boardId);
   const folder = board ? folders.find(f => f.id === board.folderId) : null;
@@ -24,6 +28,9 @@ const BoardPage = () => {
   const [newListTitle, setNewListTitle] = useState('');
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [showArchiveViewer, setShowArchiveViewer] = useState<'archived' | 'trashed' | null>(null);
+  const [archiveTab, setArchiveTab] = useState<'cards' | 'lists'>('cards');
+
+  const prefs = boardId ? (boardPreferences[boardId] || { viewMode: 'kanban', sortBy: 'default' }) : { viewMode: 'kanban', sortBy: 'default' };
 
   // Auto-dismiss undo after 5 seconds
   useEffect(() => {
@@ -80,9 +87,9 @@ const BoardPage = () => {
       reorderCards(destination.droppableId, newDestCards);
     }
 
-    // Check automation on destination list
+    // Check automations on destination list
     const destList = lists.find(l => l.id === destination.droppableId);
-    if (destList?.automation) {
+    if (destList && destList.automations && destList.automations.length > 0) {
       const card = store.cards.find(c => c.id === cardId);
       if (!card) return;
 
@@ -98,27 +105,42 @@ const BoardPage = () => {
         message: 'Ação automática'
       };
 
-      switch (destList.automation.type) {
-        case 'archive':
-          updateCard(cardId, { archived: true, automationUndoAction: { ...undoActionPayload, message: 'Arquivado automaticamente' } });
-          setUndoAction({ ...undoBase, message: `"${card.title}" foi arquivado`, type: 'archived' });
-          break;
-        case 'trash':
-          updateCard(cardId, { trashed: true, automationUndoAction: { ...undoActionPayload, message: 'Movido para lixeira automaticamente' } });
-          setUndoAction({ ...undoBase, message: `"${card.title}" foi enviado para lixeira`, type: 'trashed' });
-          break;
-        case 'move-to-board':
-          if (destList.automation.targetBoardId) {
-            const targetBoardLists = store.lists.filter(l => l.boardId === destList.automation!.targetBoardId).sort((a, b) => a.position - b.position);
-            if (targetBoardLists.length > 0) {
-              const targetBoard = boards.find(b => b.id === destList.automation!.targetBoardId);
-              updateCard(cardId, { automationUndoAction: { ...undoActionPayload, message: `Movido automaticamente para ${targetBoard?.name}` } });
-              moveCard(cardId, targetBoardLists[0].id, 0);
-              setUndoAction({ ...undoBase, message: `"${card.title}" movido para ${targetBoard?.name || 'outro board'}`, type: 'moved' });
+      destList.automations.forEach(action => {
+        switch (action.type) {
+          case 'archive':
+            updateCard(cardId, { archived: true, automationUndoAction: { ...undoActionPayload, message: 'Arquivado automaticamente' } });
+            setUndoAction({ ...undoBase, message: `"${card.title}" foi arquivado`, type: 'archived' });
+            break;
+          case 'trash':
+            updateCard(cardId, { trashed: true, automationUndoAction: { ...undoActionPayload, message: 'Movido para lixeira automaticamente' } });
+            setUndoAction({ ...undoBase, message: `"${card.title}" foi enviado para lixeira`, type: 'trashed' });
+            break;
+          case 'mark-completed':
+            updateCard(cardId, { completed: true, automationUndoAction: { ...undoActionPayload, message: 'Concluído automaticamente' } });
+            break;
+          case 'mark-milestone':
+            if (action.targetMilestoneTitle) {
+              const changedMilestones = (card.milestones || []).map(m =>
+                m.title.toLowerCase() === action.targetMilestoneTitle!.toLowerCase() ? { ...m, completed: true } : m
+              );
+              if (changedMilestones.some(m => m.completed && !(card.milestones || []).find(om => om.id === m.id)?.completed)) {
+                updateCard(cardId, { milestones: changedMilestones, automationUndoAction: { ...undoActionPayload, message: `Etapa '${action.targetMilestoneTitle}' concluída` } });
+              }
             }
-          }
-          break;
-      }
+            break;
+          case 'move-to-board':
+            if (action.targetBoardId) {
+              const targetBoardLists = store.lists.filter(l => l.boardId === action.targetBoardId).sort((a, b) => a.position - b.position);
+              if (targetBoardLists.length > 0) {
+                const targetBoard = boards.find(b => b.id === action.targetBoardId);
+                updateCard(cardId, { automationUndoAction: { ...undoActionPayload, message: `Movido automaticamente para ${targetBoard?.name}` } });
+                moveCard(cardId, targetBoardLists[0].id, 0);
+                setUndoAction({ ...undoBase, message: `"${card.title}" movido para ${targetBoard?.name || 'outro board'}`, type: 'moved' });
+              }
+            }
+            break;
+        }
+      });
     }
   };
 
@@ -129,9 +151,7 @@ const BoardPage = () => {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   };
 
-  const boardStyle = board.backgroundImage
-    ? { background: `url(${board.backgroundImage}) center/cover` }
-    : { background: `linear-gradient(to bottom right, ${hexToRgba(board.backgroundColor, 0.15)}, rgba(0,0,0,0.8))` };
+  const boardStyle = { background: `linear-gradient(to bottom right, ${hexToRgba(board.backgroundColor, 0.15)}, rgba(0,0,0,0.8))` };
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden relative" style={boardStyle}>
@@ -146,63 +166,110 @@ const BoardPage = () => {
           {board.name}
         </h2>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-2 overflow-x-auto custom-scrollbar pb-0 overflow-y-hidden">
+          <div className="flex items-center bg-white/10 rounded overflow-hidden shrink-0">
+            <button
+              onClick={() => setBoardPreference(board.id, { viewMode: 'kanban' })}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors ${prefs.viewMode === 'kanban' ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white'}`}
+            >
+              Kanban
+            </button>
+            <button
+              onClick={() => setBoardPreference(board.id, { viewMode: 'list' })}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors ${prefs.viewMode === 'list' ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white'}`}
+            >
+              Lista
+            </button>
+            <button
+              onClick={() => setBoardPreference(board.id, { viewMode: 'calendar' })}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors ${prefs.viewMode === 'calendar' ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white'}`}
+            >
+              Calendário
+            </button>
+          </div>
+
+          <select
+            value={prefs.sortBy}
+            onChange={(e) => setBoardPreference(board.id, { sortBy: e.target.value as any })}
+            className="bg-white/10 text-white text-xs rounded px-2 py-1.5 outline-none border-none cursor-pointer shrink-0 appearance-none"
+          >
+            <option value="default" className="text-black">Ordenar: Padrão</option>
+            <option value="priority" className="text-black">Ordenar: Prioridade</option>
+            <option value="assignee" className="text-black">Ordenar: Responsável</option>
+            <option value="dueDate" className="text-black">Ordenar: Data</option>
+          </select>
+
           <button onClick={() => setShowArchiveViewer('archived')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 transition-colors text-white text-xs font-medium">
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 transition-colors text-white text-xs font-medium shrink-0">
             <ArchiveIcon className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Arquivados</span>
           </button>
           <button onClick={() => setShowArchiveViewer('trashed')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 transition-colors text-white text-xs font-medium">
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 transition-colors text-white text-xs font-medium shrink-0">
             <Trash2 className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Lixeira</span>
           </button>
         </div>
       </div>
 
-      {/* Lists */}
-      <DragDropContext onDragEnd={handleDragEnd}>
-        <Droppable droppableId="board" type="LIST" direction="horizontal">
-          {(provided) => (
-            <div ref={provided.innerRef} {...provided.droppableProps}
-              className="flex-1 flex gap-3 overflow-x-auto overflow-y-hidden p-3 items-start">
-              {boardLists.map((list, index) => (
-                <Draggable key={list.id} draggableId={list.id} index={index}>
-                  {(provided, snapshot) => (
-                    <div ref={provided.innerRef} {...provided.draggableProps}
-                      className={`shrink-0 transition-shadow ${snapshot.isDragging ? 'shadow-xl rotate-2' : ''}`}>
-                      <KanbanListComponent list={list} dragHandleProps={provided.dragHandleProps} onCardClick={setSelectedCardId} />
-                    </div>
-                  )}
-                </Draggable>
-              ))}
-              {provided.placeholder}
+      {/* Views */}
+      {prefs.viewMode === 'kanban' && (
+        <DragDropContext onDragEnd={handleDragEnd}>
+          <Droppable droppableId="board" type="LIST" direction="horizontal">
+            {(provided) => (
+              <div ref={provided.innerRef} {...provided.droppableProps}
+                className="flex-1 flex gap-3 overflow-x-auto overflow-y-hidden p-3 items-start"
+                style={{ zoom: uiZoom } as React.CSSProperties}>
+                {boardLists.map((list, index) => (
+                  <Draggable key={list.id} draggableId={list.id} index={index}>
+                    {(provided, snapshot) => (
+                      <div ref={provided.innerRef} {...provided.draggableProps}
+                        className={`shrink-0 transition-shadow ${snapshot.isDragging ? 'shadow-xl rotate-2' : ''}`}>
+                        <KanbanListComponent list={list} dragHandleProps={provided.dragHandleProps} onCardClick={setSelectedCardId} />
+                      </div>
+                    )}
+                  </Draggable>
+                ))}
+                {provided.placeholder}
 
-              {/* Add list */}
-              <div className="shrink-0 w-[280px]">
-                {addingList ? (
-                  <div className="kanban-list">
-                    <input autoFocus value={newListTitle} onChange={e => setNewListTitle(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') handleAddList(); if (e.key === 'Escape') setAddingList(false); }}
-                      placeholder="Título da lista..."
-                      className="w-full bg-card rounded px-2 py-1.5 text-xs outline-none border border-border focus:border-primary mb-2" />
-                    <div className="flex gap-2">
-                      <button onClick={handleAddList} className="bg-primary text-primary-foreground px-3 py-1 rounded text-xs font-medium hover:bg-primary/90 transition-colors">Adicionar</button>
-                      <button onClick={() => setAddingList(false)} className="text-xs text-muted-foreground hover:text-foreground">Cancelar</button>
+                {/* Add list */}
+                <div className="shrink-0 w-[280px]">
+                  {addingList ? (
+                    <div className="kanban-list">
+                      <input autoFocus value={newListTitle} onChange={e => setNewListTitle(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') handleAddList(); if (e.key === 'Escape') setAddingList(false); }}
+                        placeholder="Título da lista..."
+                        className="w-full bg-card rounded px-2 py-1.5 text-xs outline-none border border-border focus:border-primary mb-2" />
+                      <div className="flex gap-2">
+                        <button onClick={handleAddList} className="bg-primary text-primary-foreground px-3 py-1 rounded text-xs font-medium hover:bg-primary/90 transition-colors">Adicionar</button>
+                        <button onClick={() => setAddingList(false)} className="text-xs text-muted-foreground hover:text-foreground">Cancelar</button>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <button onClick={() => setAddingList(true)}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors"
-                    style={{ background: 'rgba(255,255,255,0.2)', color: '#fff' }}>
-                    <Plus className="h-4 w-4" /> Adicionar lista
-                  </button>
-                )}
+                  ) : (
+                    <button onClick={() => setAddingList(true)}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors"
+                      style={{ background: 'rgba(255,255,255,0.2)', color: '#fff' }}>
+                      <Plus className="h-4 w-4" /> Adicionar lista
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
-        </Droppable>
-      </DragDropContext>
+            )}
+          </Droppable>
+        </DragDropContext>
+      )}
+
+      {prefs.viewMode === 'list' && (
+        <div className="flex-1 overflow-hidden flex flex-col" style={{ zoom: uiZoom } as React.CSSProperties}>
+          <BoardListView boardId={board.id} onCardClick={setSelectedCardId} sortBy={prefs.sortBy as 'default' | 'priority' | 'assignee' | 'dueDate'} />
+        </div>
+      )}
+
+      {prefs.viewMode === 'calendar' && (
+        <div className="flex-1 overflow-hidden flex flex-col" style={{ zoom: uiZoom } as React.CSSProperties}>
+          <BoardCalendarView boardId={board.id} onCardClick={setSelectedCardId} />
+        </div>
+      )}
 
       {/* Undo toast */}
       <AnimatePresence>
@@ -221,9 +288,11 @@ const BoardPage = () => {
       </AnimatePresence>
 
       {/* Card detail panel */}
-      {selectedCardId && (
-        <CardDetailPanel cardId={selectedCardId} onClose={() => setSelectedCardId(null)} />
-      )}
+      {
+        selectedCardId && (
+          <CardDetailPanel cardId={selectedCardId} onClose={() => setSelectedCardId(null)} />
+        )
+      }
 
       {/* Archive / Trash Viewer Modal */}
       <AnimatePresence>
@@ -231,74 +300,139 @@ const BoardPage = () => {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={() => setShowArchiveViewer(null)} />
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="relative bg-card w-full max-w-2xl rounded-xl border border-border shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-              <div className="p-4 border-b border-border flex items-center justify-between bg-muted/30">
-                <div className="flex items-center gap-2 text-foreground font-semibold">
-                  {showArchiveViewer === 'archived' ? <ArchiveIcon className="h-5 w-5 text-accent" /> : <Trash2 className="h-5 w-5 text-destructive" />}
-                  {showArchiveViewer === 'archived' ? 'Cartões Arquivados' : 'Lixeira'}
+              <div className="p-4 border-b border-border flex flex-col gap-3 bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-foreground font-semibold">
+                    {showArchiveViewer === 'archived' ? <ArchiveIcon className="h-5 w-5 text-accent" /> : <Trash2 className="h-5 w-5 text-destructive" />}
+                    {showArchiveViewer === 'archived' ? 'Itens Arquivados' : 'Lixeira'}
+                  </div>
+                  <button onClick={() => setShowArchiveViewer(null)} className="p-1.5 rounded-md hover:bg-secondary text-muted-foreground transition-colors">✕</button>
                 </div>
-                <button onClick={() => setShowArchiveViewer(null)} className="p-1.5 rounded-md hover:bg-secondary text-muted-foreground transition-colors">✕</button>
+                <div className="flex items-center gap-4 border-b border-border/50 pb-0">
+                  <button onClick={() => setArchiveTab('cards')} className={`text-sm font-medium pb-1.5 border-b-2 transition-colors ${archiveTab === 'cards' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>Cartões</button>
+                  <button onClick={() => setArchiveTab('lists')} className={`text-sm font-medium pb-1.5 border-b-2 transition-colors ${archiveTab === 'lists' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>Listas</button>
+                </div>
               </div>
 
               <div className="p-4 overflow-y-auto custom-scrollbar flex-1 bg-background/50">
                 {(() => {
-                  const filteredCards = cards.filter(c =>
-                    boardLists.some(l => l.id === c.listId) &&
-                    (showArchiveViewer === 'archived' ? c.archived && !c.trashed : c.trashed)
-                  );
-
-                  if (filteredCards.length === 0) {
-                    return (
-                      <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                        {showArchiveViewer === 'archived' ? <ArchiveIcon className="h-12 w-12 mb-3 opacity-20" /> : <Trash2 className="h-12 w-12 mb-3 opacity-20" />}
-                        <p className="text-sm font-medium">Nenhum cartão encontrado.</p>
-                      </div>
+                  if (archiveTab === 'cards') {
+                    const filteredCards = cards.filter(c =>
+                      lists.some(l => l.id === c.listId && l.boardId === boardId) &&
+                      (showArchiveViewer === 'archived' ? c.archived && !c.trashed : c.trashed)
                     );
-                  }
 
-                  return (
-                    <div className="space-y-3">
-                      {filteredCards.map(card => {
-                        const originalList = lists.find(l => l.id === card.listId);
-                        const assignee = members.find(m => m.id === card.assignee);
-                        return (
-                          <div key={card.id} className="flex flex-col sm:flex-row gap-3 p-3 rounded-lg border border-border bg-card hover:border-primary/50 transition-colors group">
-                            <div className="flex-1 min-w-0">
-                              <h4 className="text-sm font-medium truncate mb-1">{card.title}</h4>
-                              <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
-                                <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {new Date(card.createdAt).toLocaleDateString('pt-BR')}</span>
-                                {originalList && <span>em <strong>{originalList.title}</strong></span>}
-                                {assignee && (
-                                  <span className="flex items-center gap-1 ml-1" title={assignee.name}>
-                                    <img src={assignee.avatar} alt={assignee.name} className="w-4 h-4 rounded-full object-cover" />
-                                    {assignee.name.split(' ')[0]}
-                                  </span>
+                    if (filteredCards.length === 0) {
+                      return (
+                        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                          {showArchiveViewer === 'archived' ? <ArchiveIcon className="h-12 w-12 mb-3 opacity-20" /> : <Trash2 className="h-12 w-12 mb-3 opacity-20" />}
+                          <p className="text-sm font-medium">Nenhum cartão encontrado.</p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="space-y-3">
+                        {filteredCards.map(card => {
+                          const originalList = lists.find(l => l.id === card.listId);
+                          const assignee = members.find(m => m.id === card.assignee);
+                          return (
+                            <div key={card.id} className="flex flex-col sm:flex-row gap-3 p-3 rounded-lg border border-border bg-card transition-colors group">
+                              <div className="flex-1 min-w-0 cursor-pointer" onClick={() => { setSelectedCardId(card.id); setShowArchiveViewer(null); }}>
+                                <h4 className="text-sm font-medium truncate mb-1 hover:text-primary transition-colors">{card.title}</h4>
+                                <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                                  <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {new Date(card.createdAt).toLocaleDateString('pt-BR')}</span>
+                                  {originalList && <span>em <strong>{originalList.title}</strong></span>}
+                                  {assignee && (
+                                    <span className="flex items-center gap-1 ml-1" title={assignee.name}>
+                                      <img src={assignee.avatar} alt={assignee.name} className="w-4 h-4 rounded-full object-cover" />
+                                      {assignee.name.split(' ')[0]}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <button onClick={() => updateCard(card.id, { archived: false, trashed: false })}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-secondary hover:bg-primary hover:text-primary-foreground text-xs font-medium transition-colors">
+                                  <Undo2 className="h-3.5 w-3.5" /> Restaurar
+                                </button>
+                                {showArchiveViewer === 'trashed' && (
+                                  <ConfirmAction
+                                    title="Excluir Permanentemente?"
+                                    description="O cartão será excluído de forma permanente."
+                                    onConfirm={() => deleteCard(card.id)}
+                                    destructive
+                                  >
+                                    <button className="p-1.5 rounded-md text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100" title="Excluir permanentemente">
+                                      <Trash2 className="h-4 w-4" />
+                                    </button>
+                                  </ConfirmAction>
                                 )}
                               </div>
                             </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <button onClick={() => updateCard(card.id, { archived: false, trashed: false })}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-secondary hover:bg-primary hover:text-primary-foreground text-xs font-medium transition-colors">
-                                <Undo2 className="h-3.5 w-3.5" /> Restaurar
-                              </button>
-                              {showArchiveViewer === 'trashed' && (
-                                <button onClick={() => deleteCard(card.id)}
-                                  className="p-1.5 rounded-md text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100" title="Excluir permanentemente">
-                                  <Trash2 className="h-4 w-4" />
+                          );
+                        })}
+                      </div>
+                    );
+                  } else {
+                    const filteredLists = lists.filter(l =>
+                      l.boardId === boardId &&
+                      (showArchiveViewer === 'archived' ? l.archived && !l.trashed : l.trashed)
+                    );
+
+                    if (filteredLists.length === 0) {
+                      return (
+                        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                          {showArchiveViewer === 'archived' ? <ArchiveIcon className="h-12 w-12 mb-3 opacity-20" /> : <Trash2 className="h-12 w-12 mb-3 opacity-20" />}
+                          <p className="text-sm font-medium">Nenhuma lista encontrada.</p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="space-y-3">
+                        {filteredLists.map(list => {
+                          const listCardCount = cards.filter(c => c.listId === list.id).length;
+                          return (
+                            <div key={list.id} className="flex flex-col sm:flex-row gap-3 p-3 rounded-lg border border-border bg-card hover:border-primary/50 transition-colors group">
+                              <div className="flex-1 min-w-0 flex items-center gap-3">
+                                {list.color && <div className="w-3 h-3 rounded-sm" style={{ background: list.color }} />}
+                                <h4 className="text-sm font-medium truncate">{list.title}</h4>
+                                <span className="text-[10px] text-muted-foreground px-2 py-0.5 rounded-full bg-secondary">
+                                  {listCardCount} cartões
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <button onClick={() => updateList(list.id, { archived: false, trashed: false })}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-secondary hover:bg-primary hover:text-primary-foreground text-xs font-medium transition-colors">
+                                  <Undo2 className="h-3.5 w-3.5" /> Restaurar
                                 </button>
-                              )}
+                                {showArchiveViewer === 'trashed' && (
+                                  <ConfirmAction
+                                    title="Excluir Permanentemente?"
+                                    description="A lista e seus cartões serão excluídos de forma permanente."
+                                    onConfirm={() => deleteList(list.id)}
+                                    destructive
+                                  >
+                                    <button className="p-1.5 rounded-md text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100" title="Excluir permanentemente">
+                                      <Trash2 className="h-4 w-4" />
+                                    </button>
+                                  </ConfirmAction>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
+                          );
+                        })}
+                      </div>
+                    );
+                  }
                 })()}
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </div >
   );
 };
 

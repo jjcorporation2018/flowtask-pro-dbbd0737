@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Folder, Board, KanbanList, Card, Label, DEFAULT_LABELS, ChecklistItem, Comment, Attachment, WorkspaceMember } from '@/types/kanban';
+import { Folder, Board, KanbanList, Card, Label, DEFAULT_LABELS, ChecklistItem, Comment, Attachment, WorkspaceMember, Notification } from '@/types/kanban';
 
 const uid = () => crypto.randomUUID();
 
@@ -16,11 +16,21 @@ interface KanbanState {
   executeUndo: () => void;
   clearUndoAction: () => void;
   isDark: boolean;
+  uiZoom: number;
   globalSectionOrder: string[];
+  boardPreferences: Record<string, { viewMode: 'kanban' | 'calendar' | 'list', sortBy: 'default' | 'priority' | 'assignee' | 'dueDate' }>;
   setGlobalSectionOrder: (order: string[]) => void;
+  setBoardPreference: (boardId: string, prefs: Partial<{ viewMode: 'kanban' | 'calendar' | 'list', sortBy: 'default' | 'priority' | 'assignee' | 'dueDate' }>) => void;
   toggleTheme: () => void;
+  setUiZoom: (zoom: number) => void;
+  // notifications
+  notifications: Notification[];
+  addNotification: (title: string, message: string, link?: string) => void;
+  markNotificationRead: (id: string) => void;
+  markAllNotificationsRead: () => void;
+  clearNotifications: () => void;
   // folders
-  addFolder: (name: string, color?: string) => void;
+  addFolder: (name: string, color?: string, sideImage?: string) => void;
   updateFolder: (id: string, data: Partial<Folder>) => void;
   deleteFolder: (id: string) => void;
   // boards
@@ -63,6 +73,7 @@ export const useKanbanStore = create<KanbanState>()(
       lists: [],
       cards: [],
       labels: [...DEFAULT_LABELS],
+      notifications: [],
       members: [
         { id: 'm1', name: 'João Silva', email: 'joao@jjcorp.com', avatar: 'https://i.pravatar.cc/150?u=joao' },
         { id: 'm2', name: 'Maria Souza', email: 'maria@jjcorp.com', avatar: 'https://i.pravatar.cc/150?u=maria' },
@@ -70,9 +81,19 @@ export const useKanbanStore = create<KanbanState>()(
       ],
       undoAction: null,
       isDark: window.matchMedia('(prefers-color-scheme: dark)').matches,
+      uiZoom: 1,
       globalSectionOrder: ['summary', 'labels', 'assignee', 'dates', 'estimated', 'description', 'attachments', 'checklist', 'timer', 'comments'],
+      boardPreferences: {},
 
       setGlobalSectionOrder: (order) => set({ globalSectionOrder: order }),
+      setBoardPreference: (boardId, prefs) => set(s => ({
+        boardPreferences: {
+          ...s.boardPreferences,
+          [boardId]: { ...s.boardPreferences[boardId] || { viewMode: 'kanban', sortBy: 'default' }, ...prefs }
+        }
+      })),
+
+      setUiZoom: (zoom) => set({ uiZoom: zoom }),
 
       setUndoAction: (action) => set({ undoAction: action }),
       clearUndoAction: () => set({ undoAction: null }),
@@ -95,9 +116,21 @@ export const useKanbanStore = create<KanbanState>()(
         return { isDark: next };
       }),
 
+      // Notifications
+      addNotification: (title, message, link) => set(s => ({
+        notifications: [{ id: uid(), title, message, link, read: false, createdAt: new Date().toISOString() }, ...s.notifications]
+      })),
+      markNotificationRead: (id) => set(s => ({
+        notifications: s.notifications.map(n => n.id === id ? { ...n, read: true } : n)
+      })),
+      markAllNotificationsRead: () => set(s => ({
+        notifications: s.notifications.map(n => ({ ...n, read: true }))
+      })),
+      clearNotifications: () => set({ notifications: [] }),
+
       // Folders
-      addFolder: (name, color = '#026AA7') => set(s => ({
-        folders: [...s.folders, { id: uid(), name, color, icon: '📁', createdAt: new Date().toISOString() }]
+      addFolder: (name, color = '#026AA7', sideImage) => set(s => ({
+        folders: [...s.folders, { id: uid(), name, color, icon: '📁', sideImage, createdAt: new Date().toISOString() }]
       })),
       updateFolder: (id, data) => set(s => ({
         folders: s.folders.map(f => f.id === id ? { ...f, ...data } : f)

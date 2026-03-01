@@ -3,7 +3,19 @@ export interface Folder {
   name: string;
   color: string;
   icon: string;
+  sideImage?: string;
   createdAt: string;
+  archived?: boolean;
+  trashed?: boolean;
+}
+
+export interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  read: boolean;
+  createdAt: string;
+  link?: string;
 }
 
 export interface Board {
@@ -13,6 +25,8 @@ export interface Board {
   backgroundColor: string;
   backgroundImage?: string;
   createdAt: string;
+  archived?: boolean;
+  trashed?: boolean;
 }
 
 export interface KanbanList {
@@ -22,11 +36,14 @@ export interface KanbanList {
   position: number;
   color?: string;
   icon?: string;
-  // Automation: when a card is dropped here, auto-move to another board/list, archive, or trash
-  automation?: {
-    type: 'move-to-board' | 'archive' | 'trash';
+  // Automations: list of actions to perform when a card is dropped
+  automations?: Array<{
+    type: 'move-to-board' | 'archive' | 'trash' | 'mark-completed' | 'mark-milestone';
     targetBoardId?: string;
-  };
+    targetMilestoneTitle?: string;
+  }>;
+  archived?: boolean;
+  trashed?: boolean;
 }
 
 export interface Label {
@@ -71,6 +88,14 @@ export interface Attachment {
   addedAt: string;
 }
 
+export interface Milestone {
+  id: string;
+  title: string;
+  startDate?: string;
+  dueDate?: string;
+  completed: boolean;
+}
+
 export interface Card {
   id: string;
   listId: string;
@@ -83,6 +108,7 @@ export interface Card {
   comments: Comment[];
   dueDate?: string;
   startDate?: string;
+  milestones?: Milestone[];
   completed: boolean;
   archived: boolean;
   trashed: boolean;

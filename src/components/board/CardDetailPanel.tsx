@@ -1,5 +1,5 @@
 import { useKanbanStore } from '@/store/kanban-store';
-import { PREDEFINED_LABEL_COLORS, Attachment } from '@/types/kanban';
+import { PREDEFINED_LABEL_COLORS, Attachment, Milestone } from '@/types/kanban';
 import {
   X, Calendar, Tag, CheckSquare, MessageSquare, Clock, Trash2, Plus,
   Play, Square, RotateCcw, FileText, User, Timer, AlignLeft,
@@ -58,6 +58,9 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
   const [labelHex, setLabelHex] = useState('#3b82f6');
   const [labelIcon, setLabelIcon] = useState<string | undefined>();
   const [editLabelId, setEditLabelId] = useState<string | null>(null);
+  const [showChat, setShowChat] = useState((card?.comments.length || 0) > 0);
+  const [newMilestoneTitle, setNewMilestoneTitle] = useState('');
+  const [isDescExpanded, setIsDescExpanded] = useState(false);
 
   // Constants
   const ICONS = [
@@ -117,7 +120,21 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
   };
   const handleSetDueDate = (val: string) => { setDueDate(val); updateCard(cardId, { dueDate: val || undefined }); };
   const handleSetStartDate = (val: string) => { setStartDate(val); updateCard(cardId, { startDate: val || undefined }); };
-  const handleSetAssignee = (val: string) => { setAssignee(val); updateCard(cardId, { assignee: val || undefined }); };
+  const handleSetAssignee = (val: string) => {
+    setAssignee(val);
+    updateCard(cardId, { assignee: val || undefined });
+    if (val && val !== card.assignee) {
+      const member = members.find(m => m.id === val);
+      const list = lists.find(l => l.id === card.listId);
+      if (member && list) {
+        useKanbanStore.getState().addNotification(
+          'Nova Atribuição',
+          `O cartão "${card.title}" foi atribuído a ${member.name}.`,
+          `/board/${list.boardId}`
+        );
+      }
+    }
+  };
   const handleSetEstimatedTime = (val: string) => {
     setEstimatedTime(val);
     updateCard(cardId, { estimatedTime: val ? parseInt(val) : undefined });
@@ -140,19 +157,26 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
     descRef.current?.focus();
   };
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-    Array.from(files).forEach(file => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    let loaded = 0;
+    const newAttachments: Attachment[] = [];
+
+    files.forEach(file => {
       const reader = new FileReader();
       reader.onload = () => {
-        const attachment: Attachment = {
+        newAttachments.push({
           id: crypto.randomUUID(),
           name: file.name,
           url: reader.result as string,
           type: file.type,
           addedAt: new Date().toISOString(),
-        };
-        updateCard(cardId, { attachments: [...card.attachments, attachment] });
+        });
+        loaded++;
+        if (loaded === files.length) {
+          updateCard(cardId, { attachments: [...card.attachments, ...newAttachments] });
+        }
       };
       reader.readAsDataURL(file);
     });
@@ -167,6 +191,38 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
   const totalTimeSecs = card.timeEntries.reduce((t, e) => t + e.duration, 0);
   const totalH = Math.floor(totalTimeSecs / 3600);
   const totalM = Math.floor((totalTimeSecs % 3600) / 60);
+
+  const recalculateCardDates = (milestones: Milestone[]) => {
+    let earliest: string | undefined;
+    let latest: string | undefined;
+    milestones.forEach(m => {
+      if (m.startDate) {
+        if (!earliest || new Date(m.startDate) < new Date(earliest)) earliest = m.startDate;
+      }
+      if (m.dueDate) {
+        if (!latest || new Date(m.dueDate) > new Date(latest)) latest = m.dueDate;
+      }
+    });
+    return { startDate: earliest, dueDate: latest };
+  };
+
+  const handleAddMilestone = (title: string) => {
+    if (!title.trim()) return;
+    const newMs: Milestone = { id: crypto.randomUUID(), title: title.trim(), completed: false };
+    const updated = [...(card.milestones || []), newMs];
+    updateCard(cardId, { milestones: updated, ...recalculateCardDates(updated) });
+    setNewMilestoneTitle('');
+  };
+
+  const handleUpdateMilestone = (id: string, partial: Partial<Milestone>) => {
+    const updated = (card.milestones || []).map(m => m.id === id ? { ...m, ...partial } : m);
+    updateCard(cardId, { milestones: updated, ...recalculateCardDates(updated) });
+  };
+
+  const handleDeleteMilestone = (id: string) => {
+    const updated = (card.milestones || []).filter(m => m.id !== id);
+    updateCard(cardId, { milestones: updated, ...recalculateCardDates(updated) });
+  };
 
   const renderSection = (section: string) => {
     switch (section) {
@@ -285,25 +341,49 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
       case 'dates':
         return (
           <div key={section}>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground mb-2">
-                  <Calendar className="h-3.5 w-3.5" /> Data de Início
-                </label>
-                <input type="date" value={startDate} onChange={e => handleSetStartDate(e.target.value)}
-                  className="w-full bg-secondary rounded px-2 py-1.5 text-xs outline-none border border-border focus:border-primary" />
-              </div>
-              <div>
-                <label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground mb-2">
-                  <Calendar className="h-3.5 w-3.5" /> Data de Entrega
-                </label>
-                <input type="date" value={dueDate} onChange={e => handleSetDueDate(e.target.value)}
-                  className="w-full bg-secondary rounded px-2 py-1.5 text-xs outline-none border border-border focus:border-primary" />
-              </div>
+            <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground mb-3">
+              <Calendar className="h-3.5 w-3.5" /> Etapas (Milestones)
             </div>
-            <label className="flex items-center gap-1.5 text-xs text-muted-foreground mt-2">
+
+            <div className="space-y-3 mb-3">
+              {(card.milestones || []).map(ms => (
+                <div key={ms.id} className="flex flex-col gap-2 p-3 bg-secondary/50 rounded-lg border border-border group focus-within:border-primary/50 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={ms.completed} onChange={() => handleUpdateMilestone(ms.id, { completed: !ms.completed })} className="rounded cursor-pointer" />
+                    <input value={ms.title} onChange={(e) => handleUpdateMilestone(ms.id, { title: e.target.value })} className={`flex-1 text-xs bg-transparent outline-none font-medium ${ms.completed ? 'line-through text-muted-foreground' : ''}`} />
+                    <button onClick={() => handleDeleteMilestone(ms.id)} className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 transition-colors text-destructive">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <div className="flex flex-col sm:flex-row items-center gap-3 pl-5">
+                    <div className="flex items-center gap-1.5 w-full sm:flex-1">
+                      <span className="text-[10px] text-muted-foreground w-8">Início:</span>
+                      <input type="date" value={ms.startDate || ''} onChange={(e) => handleUpdateMilestone(ms.id, { startDate: e.target.value })} className="bg-background cursor-pointer rounded px-1.5 py-1 text-[10px] outline-none border border-border flex-1 focus:border-primary" />
+                    </div>
+                    <div className="flex items-center gap-1.5 w-full sm:flex-1">
+                      <span className="text-[10px] text-muted-foreground w-8">Fim:</span>
+                      <input type="date" value={ms.dueDate || ''} onChange={(e) => handleUpdateMilestone(ms.id, { dueDate: e.target.value })} className="bg-background cursor-pointer rounded px-1.5 py-1 text-[10px] outline-none border border-border flex-1 focus:border-primary" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-2 mb-3">
+              <input value={newMilestoneTitle} onChange={e => setNewMilestoneTitle(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddMilestone(newMilestoneTitle)} placeholder="Nova etapa (ex: Planejamento)" className="flex-1 bg-secondary rounded px-2 py-1.5 text-xs outline-none border border-border focus:border-primary" />
+              <button onClick={() => handleAddMilestone(newMilestoneTitle)} className="px-3 rounded bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors">Adicionar</button>
+            </div>
+
+            <div className="flex gap-2 flex-wrap mb-4">
+              <span className="text-[10px] text-muted-foreground w-full">Sugestões de etapas:</span>
+              {['Planejamento', 'Execução', 'Revisão', 'Aprovação'].map(sug => (
+                <button key={sug} onClick={() => handleAddMilestone(sug)} className="px-2 py-1 rounded bg-secondary text-[10px] font-medium hover:bg-primary hover:text-primary-foreground transition-colors text-foreground">{sug}</button>
+              ))}
+            </div>
+
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground mt-4 pt-3 border-t border-border focus-within:text-foreground transition-colors cursor-pointer">
               <input type="checkbox" checked={card.completed} onChange={() => updateCard(cardId, { completed: !card.completed })} className="rounded" />
-              Concluída
+              Cartão concluído geral
             </label>
           </div>
         );
@@ -356,14 +436,23 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
                 <option value="p">Normal</option>
               </select>
             </div>
-            <div
-              ref={descRef}
-              contentEditable
-              onBlur={handleSaveDesc}
-              dangerouslySetInnerHTML={{ __html: card.description }}
-              className="w-full bg-secondary rounded-b-lg px-3 py-2 text-xs outline-none border border-border focus:border-primary min-h-[120px] prose prose-sm max-w-none"
-              style={{ lineHeight: 1.6 }}
-            />
+            <div className="relative">
+              <div
+                ref={descRef}
+                contentEditable
+                onBlur={handleSaveDesc}
+                onClick={() => !isDescExpanded && setIsDescExpanded(true)}
+                dangerouslySetInnerHTML={{ __html: card.description }}
+                className={`w-full bg-secondary rounded-b-lg px-3 py-2 text-xs outline-none border border-border focus:border-primary prose prose-sm max-w-none transition-all duration-300 ${isDescExpanded ? 'min-h-[120px]' : 'max-h-[60px] overflow-hidden cursor-pointer hover:bg-secondary/80'}`}
+                style={{ lineHeight: 1.6 }}
+              />
+              {!isDescExpanded && card.description && card.description.length > 50 && (
+                <button onClick={() => setIsDescExpanded(true)} className="absolute bottom-1 right-2 text-[10px] text-primary bg-background shadow px-2 py-0.5 rounded-full cursor-pointer hover:underline border border-border">Ver mais</button>
+              )}
+            </div>
+            {isDescExpanded && (
+              <button onClick={() => setIsDescExpanded(false)} className="text-[10px] text-muted-foreground mt-1 hover:underline cursor-pointer block ml-auto px-1">Ocultar</button>
+            )}
           </div>
         );
       case 'attachments':
@@ -468,34 +557,7 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
           </div>
         );
       case 'comments':
-        return (
-          <div key={section}>
-            <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground mb-2">
-              <MessageSquare className="h-3.5 w-3.5" /> Comentários ({card.comments.length})
-            </div>
-            <div className="flex gap-2 mb-3">
-              <textarea value={newComment} onChange={e => setNewComment(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddComment(); } }}
-                placeholder="Escreva um comentário... Use @nome para mencionar"
-                className="flex-1 bg-secondary rounded px-3 py-2 text-xs outline-none border border-border focus:border-primary resize-none min-h-[50px]" />
-              <button onClick={handleAddComment} className="self-end px-3 py-1.5 rounded bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors">Enviar</button>
-            </div>
-            <div className="space-y-2">
-              {card.comments.slice().reverse().map(comment => (
-                <div key={comment.id} className="bg-secondary rounded-lg p-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="h-5 w-5 rounded-full bg-accent flex items-center justify-center text-[9px] font-bold text-accent-foreground">{comment.author[0]}</div>
-                    <span className="text-[11px] font-medium">{comment.author}</span>
-                    <span className="text-[10px] text-muted-foreground">
-                      {new Date(comment.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
-                  <p className="text-xs text-foreground/80 whitespace-pre-wrap">{comment.text}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
+        return null; // Comentários agora ficam no painel lateral
       default:
         return null;
     }
@@ -503,101 +565,148 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
 
   return (
     <AnimatePresence>
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex justify-end">
-        <div className="absolute inset-0 bg-foreground/30" onClick={onClose} />
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6">
+        <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
         <motion.div
-          initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
+          initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
           transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-          className="relative w-full max-w-xl bg-background border-l border-border overflow-y-auto"
+          className={`relative w-full ${showChat ? 'max-w-5xl' : 'max-w-3xl'} bg-background border border-border shadow-2xl rounded-xl overflow-hidden flex max-h-[90vh] transition-all duration-300`}
         >
-          <div className="p-6 space-y-5">
-            {/* Header */}
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">em {list?.title || 'Lista'}</p>
-                <input
-                  value={title}
-                  onChange={e => setTitle(e.target.value)}
-                  onBlur={handleSaveTitle}
-                  onKeyDown={e => e.key === 'Enter' && handleSaveTitle()}
-                  className="w-full text-lg font-bold bg-transparent outline-none border-b border-transparent focus:border-primary pb-1"
-                />
+          {/* Main content scrollable area */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar">
+            <div className="p-6 space-y-5">
+              {/* Header */}
+              <div className="flex items-start justify-between">
+                <div className="flex-1 pr-4">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">em {list?.title || 'Lista'}</p>
+                  <input
+                    value={title}
+                    onChange={e => setTitle(e.target.value)}
+                    onBlur={handleSaveTitle}
+                    onKeyDown={e => e.key === 'Enter' && handleSaveTitle()}
+                    className="w-full text-lg font-bold bg-transparent outline-none border-b border-transparent focus:border-primary pb-1"
+                  />
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button onClick={() => setShowChat(!showChat)} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded transition-colors ${showChat ? 'bg-primary/20 text-primary' : 'bg-secondary hover:bg-secondary/80 text-muted-foreground'} text-xs font-semibold`} title="Alternar Chat">
+                    <MessageSquare className="h-4 w-4" /> <span className="hidden sm:inline">Comentários</span> {card.comments.length > 0 && `(${card.comments.length})`}
+                  </button>
+                  <button onClick={onClose} className="p-1.5 rounded hover:bg-secondary transition-colors text-muted-foreground">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
-              <button onClick={onClose} className="p-1.5 rounded hover:bg-secondary transition-colors ml-2">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
 
-            {/* Status badges */}
-            {(card.archived || card.trashed) && (
-              <div className="flex items-center gap-2">
-                {card.archived && (
-                  <span className="flex items-center gap-1 px-2 py-1 rounded bg-accent/20 text-accent text-[10px] font-medium">
-                    <Archive className="h-3 w-3" /> Arquivado
-                  </span>
+              {/* Status badges */}
+              {(card.archived || card.trashed) && (
+                <div className="flex items-center gap-2">
+                  {card.archived && (
+                    <span className="flex items-center gap-1 px-2 py-1 rounded bg-accent/20 text-accent text-[10px] font-medium">
+                      <Archive className="h-3 w-3" /> Arquivado
+                    </span>
+                  )}
+                  {card.trashed && (
+                    <span className="flex items-center gap-1 px-2 py-1 rounded bg-destructive/20 text-destructive text-[10px] font-medium">
+                      <Trash2 className="h-3 w-3" /> Na Lixeira
+                    </span>
+                  )}
+                  <button onClick={() => updateCard(cardId, { archived: false, trashed: false })}
+                    className="flex items-center gap-1 px-2 py-1 rounded bg-secondary text-[10px] font-medium hover:bg-secondary/80">
+                    <Undo2 className="h-3 w-3" /> Restaurar
+                  </button>
+                </div>
+              )}
+
+              {/* Modular sections - reorderable */}
+              <Reorder.Group axis="y" values={globalSectionOrder.filter(s => s !== 'comments')} onReorder={(newOrder) => setGlobalSectionOrder([...newOrder, 'comments'])} className="space-y-5">
+                {globalSectionOrder.filter(s => s !== 'comments').map(section => (
+                  <Reorder.Item key={section} value={section} className="relative group">
+                    <div className="absolute -left-5 top-1 opacity-0 group-hover:opacity-50 cursor-grab">
+                      <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
+                    </div>
+                    {renderSection(section)}
+                  </Reorder.Item>
+                ))}
+              </Reorder.Group>
+
+              {/* Actions */}
+              <div className="pt-4 border-t border-border flex flex-wrap gap-2">
+                {card.automationUndoAction && (
+                  <button onClick={() => {
+                    updateCard(cardId, { archived: false, trashed: false, automationUndoAction: undefined });
+                    moveCard(cardId, card.automationUndoAction!.previousListId, 0);
+                    onClose();
+                  }}
+                    className="flex items-center gap-2 text-xs text-primary bg-primary/10 hover:bg-primary/20 px-3 py-2 rounded transition-colors mr-auto"
+                    title={card.automationUndoAction.message}>
+                    <Undo2 className="h-3.5 w-3.5" /> Desfazer Automação
+                  </button>
                 )}
-                {card.trashed && (
-                  <span className="flex items-center gap-1 px-2 py-1 rounded bg-destructive/20 text-destructive text-[10px] font-medium">
-                    <Trash2 className="h-3 w-3" /> Na Lixeira
-                  </span>
-                )}
-                <button onClick={() => updateCard(cardId, { archived: false, trashed: false })}
-                  className="flex items-center gap-1 px-2 py-1 rounded bg-secondary text-[10px] font-medium hover:bg-secondary/80">
-                  <Undo2 className="h-3 w-3" /> Restaurar
-                </button>
-              </div>
-            )}
 
-            {/* Modular sections - reorderable */}
-            <Reorder.Group axis="y" values={globalSectionOrder} onReorder={setGlobalSectionOrder} className="space-y-5">
-              {globalSectionOrder.map(section => (
-                <Reorder.Item key={section} value={section} className="relative group">
-                  <div className="absolute -left-5 top-1 opacity-0 group-hover:opacity-50 cursor-grab">
-                    <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
-                  </div>
-                  {renderSection(section)}
-                </Reorder.Item>
-              ))}
-            </Reorder.Group>
-
-            {/* Actions */}
-            <div className="pt-4 border-t border-border flex flex-wrap gap-2">
-              {card.automationUndoAction && (
                 <button onClick={() => {
-                  updateCard(cardId, { archived: false, trashed: false, automationUndoAction: undefined });
-                  moveCard(cardId, card.automationUndoAction!.previousListId, 0);
+                  updateCard(cardId, { archived: true });
+                  if (list) setUndoAction({ cardId, previousListId: list.id, previousPosition: card.position, message: `"${card.title}" foi arquivado`, type: 'archived' });
                   onClose();
                 }}
-                  className="flex items-center gap-2 text-xs text-primary bg-primary/10 hover:bg-primary/20 px-3 py-2 rounded transition-colors mr-auto"
-                  title={card.automationUndoAction.message}>
-                  <Undo2 className="h-3.5 w-3.5" /> Desfazer Automação
+                  className={`flex items-center gap-2 text-xs text-muted-foreground hover:bg-secondary px-3 py-2 rounded transition-colors ${!card.automationUndoAction ? 'ml-auto' : ''}`}>
+                  <Archive className="h-3.5 w-3.5" /> Arquivar
                 </button>
-              )}
-
-              <button onClick={() => {
-                updateCard(cardId, { archived: true });
-                if (list) setUndoAction({ cardId, previousListId: list.id, previousPosition: card.position, message: `"${card.title}" foi arquivado`, type: 'archived' });
-                onClose();
-              }}
-                className={`flex items-center gap-2 text-xs text-muted-foreground hover:bg-secondary px-3 py-2 rounded transition-colors ${!card.automationUndoAction ? 'ml-auto' : ''}`}>
-                <Archive className="h-3.5 w-3.5" /> Arquivar
-              </button>
-              <button onClick={() => {
-                updateCard(cardId, { trashed: true });
-                if (list) setUndoAction({ cardId, previousListId: list.id, previousPosition: card.position, message: `"${card.title}" foi enviado para lixeira`, type: 'trashed' });
-                onClose();
-              }}
-                className="flex items-center gap-2 text-xs text-destructive hover:bg-destructive/10 px-3 py-2 rounded transition-colors">
-                <Trash2 className="h-3.5 w-3.5" /> Lixeira
-              </button>
-              {card.trashed && (
-                <button onClick={() => { deleteCard(cardId); onClose(); }}
+                <button onClick={() => {
+                  updateCard(cardId, { trashed: true });
+                  if (list) setUndoAction({ cardId, previousListId: list.id, previousPosition: card.position, message: `"${card.title}" foi enviado para lixeira`, type: 'trashed' });
+                  onClose();
+                }}
                   className="flex items-center gap-2 text-xs text-destructive hover:bg-destructive/10 px-3 py-2 rounded transition-colors">
-                  <Trash2 className="h-3.5 w-3.5" /> Excluir permanentemente
+                  <Trash2 className="h-3.5 w-3.5" /> Lixeira
                 </button>
-              )}
+                {card.trashed && (
+                  <button onClick={() => { deleteCard(cardId); onClose(); }}
+                    className="flex items-center gap-2 text-xs text-destructive hover:bg-destructive/10 px-3 py-2 rounded transition-colors">
+                    <Trash2 className="h-3.5 w-3.5" /> Excluir permanentemente
+                  </button>
+                )}
+              </div>
             </div>
           </div>
+
+          {/* Chat Side Pane */}
+          {showChat && (
+            <div className="w-[320px] md:w-[380px] border-l border-border bg-muted/20 flex flex-col shrink-0">
+              <div className="p-4 border-b border-border flex items-center justify-between bg-card text-foreground font-semibold">
+                <span className="flex items-center gap-2"><MessageSquare className="h-4 w-4" /> Chat & Comentários</span>
+                <button onClick={() => setShowChat(false)} className="p-1 rounded hover:bg-secondary transition-colors text-muted-foreground"><X className="h-4 w-4" /></button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-3">
+                {card.comments.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center mt-10">Nenhum comentário ainda. Inicie a conversa abaixo.</p>
+                ) : (
+                  card.comments.slice().reverse().map(comment => (
+                    <div key={comment.id} className="bg-background border border-border rounded-lg p-3 shadow-sm">
+                      <div className="flex items-center gap-2 mb-1.5 border-b border-border pb-1.5">
+                        <div className="h-5 w-5 rounded-full bg-accent flex items-center justify-center text-[9px] font-bold text-accent-foreground">{comment.author[0]}</div>
+                        <span className="text-[11px] font-medium text-foreground">{comment.author}</span>
+                        <span className="text-[9px] text-muted-foreground ml-auto">
+                          {new Date(comment.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <p className="text-xs text-foreground/90 whitespace-pre-wrap">{comment.text}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="p-3 bg-card border-t border-border">
+                <div className="flex flex-col gap-2">
+                  <textarea value={newComment} onChange={e => setNewComment(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddComment(); } }}
+                    placeholder="Escreva um comentário... Use @nome para mencionar"
+                    className="w-full bg-secondary rounded px-3 py-2 text-xs outline-none border border-border focus:border-primary resize-none min-h-[60px]" />
+                  <button onClick={handleAddComment} className="self-end px-4 py-1.5 rounded bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors shadow-sm">
+                    Enviar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </motion.div>
       </motion.div>
     </AnimatePresence>

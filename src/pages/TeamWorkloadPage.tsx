@@ -1,0 +1,172 @@
+import { useKanbanStore } from '@/store/kanban-store';
+import { Users, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
+import CardDetailPanel from '@/components/board/CardDetailPanel';
+import { useState } from 'react';
+import { Card } from '@/types/kanban';
+
+export default function TeamWorkloadPage() {
+    const { members, cards, boards, lists, labels } = useKanbanStore();
+    const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+
+    // Filter only active cards
+    const activeCards = cards.filter(c => !c.archived && !c.trashed);
+
+    const getCardPriority = (card: Card) => {
+        const cardLabels = labels.filter(l => card.labels.includes(l.id));
+        if (cardLabels.some(l => l.name.toLowerCase().includes('urgent') || l.color === '#ef4444')) return 1;
+        if (cardLabels.some(l => l.name.toLowerCase().includes('important') || l.color === '#f97316')) return 2;
+        if (cardLabels.some(l => l.color === '#eab308')) return 3;
+        if (cardLabels.length > 0) return 4;
+        return 5;
+    };
+
+    const getMemberStats = (memberId: string) => {
+        const memberCards = activeCards.filter(c => c.assignee === memberId);
+        const completed = memberCards.filter(c => c.completed).length;
+        const pending = memberCards.length - completed;
+        const overdue = memberCards.filter(c => !c.completed && c.dueDate && new Date(c.dueDate) < new Date()).length;
+        const completionRate = memberCards.length > 0 ? Math.round((completed / memberCards.length) * 100) : 0;
+
+        return {
+            total: memberCards.length,
+            completed,
+            pending,
+            overdue,
+            completionRate,
+            cards: memberCards.sort((a, b) => getCardPriority(a) - getCardPriority(b))
+        };
+    };
+
+    const unassignedCards = activeCards.filter(c => !c.assignee && !c.completed);
+
+    return (
+        <div className="flex-1 flex flex-col overflow-hidden bg-background">
+            <div className="p-6 border-b border-border bg-card shrink-0">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center text-primary">
+                        <Users className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/60">Equipe e Fluxo de Trabalho</h1>
+                        <p className="text-sm text-muted-foreground">Métricas de produtividade e cards por membro</p>
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {members.map(member => {
+                        const stats = getMemberStats(member.id);
+                        return (
+                            <div key={member.id} className="bg-card rounded-xl border border-border overflow-hidden shadow-sm flex flex-col max-h-[500px]">
+                                <div className="p-4 border-b border-border bg-muted/20">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <img src={member.avatar} alt={member.name} className="w-12 h-12 rounded-full border-2 border-primary object-cover" />
+                                        <div className="overflow-hidden">
+                                            <h3 className="font-bold text-foreground truncate">{member.name}</h3>
+                                            <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-3 gap-2 mb-3">
+                                        <div className="bg-background rounded p-2 text-center border border-border">
+                                            <p className="text-[10px] text-muted-foreground uppercase mb-1 truncate">Total</p>
+                                            <p className="font-bold text-sm">{stats.total}</p>
+                                        </div>
+                                        <div className="bg-background rounded p-2 text-center border border-border">
+                                            <p className="text-[10px] text-muted-foreground uppercase mb-1 truncate">Atrasos</p>
+                                            <p className="font-bold text-sm text-destructive">{stats.overdue}</p>
+                                        </div>
+                                        <div className="bg-background rounded p-2 text-center border border-border">
+                                            <p className="text-[10px] text-muted-foreground uppercase mb-1 truncate">Prontos</p>
+                                            <p className="font-bold text-sm text-label-green">{stats.completed}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <div className="flex justify-between text-[10px] font-medium text-muted-foreground">
+                                            <span>Progresso</span>
+                                            <span>{stats.completionRate}%</span>
+                                        </div>
+                                        <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                                            <div className="h-full bg-primary transition-all duration-500" style={{ width: `${stats.completionRate}%` }} />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar bg-background/50">
+                                    <h4 className="text-[11px] font-bold text-muted-foreground uppercase px-1 mb-2">Tarefas Atribuídas: {stats.cards.length}</h4>
+                                    {stats.cards.length === 0 ? (
+                                        <p className="text-xs text-muted-foreground text-center py-4">Nenhuma tarefa atribuída</p>
+                                    ) : (
+                                        stats.cards.map(card => {
+                                            const list = lists.find(l => l.id === card.listId);
+                                            const board = boards.find(b => b.id === list?.boardId);
+                                            const cardLabels = labels.filter(l => card.labels.includes(l.id));
+
+                                            return (
+                                                <div key={card.id} onClick={() => setSelectedCardId(card.id)} className={`p-2 rounded-lg border shadow-sm cursor-pointer transition-all hover:-translate-y-[1px] ${card.completed ? 'opacity-60 border-label-green/30 bg-label-green/5' : 'border-border bg-card hover:border-primary/50'}`}>
+                                                    <div className="flex items-start justify-between gap-2 mb-1">
+                                                        <span className={`text-xs font-semibold line-clamp-2 ${card.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{card.title}</span>
+                                                        {cardLabels.length > 0 && <span className="w-2 h-2 rounded-full shrink-0 mt-1" style={{ backgroundColor: cardLabels[0].color }} title={cardLabels[0].name} />}
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-1">
+                                                        <span className="truncate max-w-[120px] bg-secondary px-1.5 py-0.5 rounded text-foreground font-medium">{board?.name}</span>
+                                                        {card.dueDate && (
+                                                            <span className={`flex items-center gap-1 ml-auto font-medium ${card.completed ? '' : (new Date(card.dueDate) < new Date() ? 'text-destructive' : 'text-primary')}`}>
+                                                                <Clock className="w-3 h-3" /> {new Date(card.dueDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+
+                    {/* Unassigned Cards Panel */}
+                    <div className="bg-secondary/30 rounded-xl border border-border border-dashed overflow-hidden flex flex-col max-h-[500px]">
+                        <div className="p-4 border-b border-border/50 bg-muted/10">
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="w-10 h-10 rounded-full border-2 border-border border-dashed flex items-center justify-center text-muted-foreground bg-background">
+                                    <AlertCircle className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-foreground">Sem Responsável</h3>
+                                    <p className="text-xs text-muted-foreground">Tarefas aguardando atribuição</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2 bg-background p-2 rounded border border-border/50 w-max mt-4">
+                                <span className="text-[10px] uppercase text-muted-foreground font-semibold">Total Pendentes</span>
+                                <span className="text-sm font-bold">{unassignedCards.length}</span>
+                            </div>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
+                            {unassignedCards.length === 0 ? (
+                                <p className="text-xs text-muted-foreground text-center py-8">Todas as tarefas ativas foram atribuídas a alguém!</p>
+                            ) : (
+                                unassignedCards.map(card => {
+                                    const list = lists.find(l => l.id === card.listId);
+                                    const board = boards.find(b => b.id === list?.boardId);
+                                    return (
+                                        <div key={`u-${card.id}`} onClick={() => setSelectedCardId(card.id)} className="p-2 rounded-lg border border-border bg-card shadow-sm cursor-pointer hover:border-primary/50 transition-all flex flex-col gap-1 hover:-translate-y-[1px]">
+                                            <p className="text-xs font-semibold line-clamp-2">{card.title}</p>
+                                            <span className="text-[10px] text-muted-foreground w-max font-medium bg-secondary px-1.5 py-0.5 rounded truncate inline-block max-w-full">{board?.name}</span>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {selectedCardId && (
+                <CardDetailPanel cardId={selectedCardId} onClose={() => setSelectedCardId(null)} />
+            )}
+        </div>
+    );
+}
