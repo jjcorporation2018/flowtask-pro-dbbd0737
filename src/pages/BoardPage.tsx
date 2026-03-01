@@ -227,7 +227,7 @@ const BoardPage = () => {
           <Droppable droppableId="board" type="LIST" direction="horizontal">
             {(provided) => (
               <div ref={provided.innerRef} {...provided.droppableProps}
-                className="flex-1 flex gap-3 overflow-x-auto overflow-y-hidden p-3 items-start custom-scrollbar h-full min-h-0"
+                className="flex-1 flex gap-3 overflow-auto p-3 items-start custom-scrollbar h-full min-h-0"
                 style={{ zoom: uiZoom } as React.CSSProperties}>
                 {boardLists.map((list, index) => (
                   <Draggable key={list.id} draggableId={list.id} index={index}>

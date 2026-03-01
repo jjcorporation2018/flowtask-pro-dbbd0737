@@ -10,6 +10,27 @@ export interface Folder {
   trashedAt?: string;
 }
 
+export interface Company {
+  id: string;
+  type: 'Fornecedor' | 'Transportadora';
+  cnpj: string;
+  razao_social: string;
+  nome_fantasia: string;
+  descricao_situacao_cadastral: string;
+  cnae_fiscal_descricao: string;
+  cep: string;
+  uf: string;
+  municipio: string;
+  bairro: string;
+  logradouro: string;
+  numero: string;
+  complemento: string;
+  ddd_telefone_1: string;
+  ddd_telefone_2: string;
+  email: string;
+  createdAt: string;
+}
+
 export interface Notification {
   id: string;
   title: string;

@@ -12,6 +12,7 @@ import FolderPage from "./pages/FolderPage";
 import BoardPage from "./pages/BoardPage";
 import GlobalCalendarPage from "./pages/GlobalCalendarPage";
 import TeamWorkloadPage from "./pages/TeamWorkloadPage";
+import SuppliersPage from "./pages/SuppliersPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +35,7 @@ const AppContent = () => {
           <Route path="/board/:boardId" element={<BoardPage />} />
           <Route path="/calendar" element={<GlobalCalendarPage />} />
           <Route path="/team" element={<TeamWorkloadPage />} />
+          <Route path="/suppliers" element={<SuppliersPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </div>

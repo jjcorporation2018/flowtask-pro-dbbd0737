@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Folder, Board, KanbanList, Card, Label, DEFAULT_LABELS, ChecklistItem, Comment, Attachment, WorkspaceMember, Notification } from '@/types/kanban';
+import { Folder, Board, KanbanList, Card, Label, DEFAULT_LABELS, ChecklistItem, Comment, Attachment, WorkspaceMember, Notification, Company } from '@/types/kanban';
 
 const uid = () => crypto.randomUUID();
 
@@ -11,6 +11,8 @@ interface KanbanState {
   cards: Card[];
   labels: Label[];
   members: WorkspaceMember[];
+  companies: Company[];
+
   undoAction: { cardId: string; previousListId: string; previousPosition: number; message: string; type: 'archived' | 'trashed' | 'moved' } | null;
   setUndoAction: (action: KanbanState['undoAction']) => void;
   executeUndo: () => void;
@@ -33,6 +35,9 @@ interface KanbanState {
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
   clearNotifications: () => void;
+  // companies
+  addCompany: (companyData: Omit<Company, 'id' | 'createdAt'>) => void;
+  removeCompany: (id: string) => void;
   // folders
   addFolder: (name: string, color?: string, sideImage?: string) => void;
   updateFolder: (id: string, data: Partial<Folder>) => void;
@@ -83,6 +88,7 @@ export const useKanbanStore = create<KanbanState>()(
         { id: 'm2', name: 'Maria Souza', email: 'maria@jjcorp.com', avatar: 'https://i.pravatar.cc/150?u=maria' },
         { id: 'm3', name: 'Carlos Santos', email: 'carlos@jjcorp.com', avatar: 'https://i.pravatar.cc/150?u=carlos' },
       ],
+      companies: [],
       undoAction: null,
       isDark: window.matchMedia('(prefers-color-scheme: dark)').matches,
       uiZoom: 1,
@@ -141,6 +147,14 @@ export const useKanbanStore = create<KanbanState>()(
         notifications: s.notifications.map(n => ({ ...n, read: true }))
       })),
       clearNotifications: () => set({ notifications: [] }),
+
+      // Companies
+      addCompany: (companyData) => set(s => ({
+        companies: [{ ...companyData, id: uid(), createdAt: new Date().toISOString() }, ...s.companies]
+      })),
+      removeCompany: (id) => set(s => ({
+        companies: s.companies.filter(c => c.id !== id)
+      })),
 
       // Folders
       addFolder: (name, color = '#026AA7', sideImage) => set(s => ({

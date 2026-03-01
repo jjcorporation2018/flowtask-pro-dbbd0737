@@ -27,17 +27,24 @@ const AppHeader = () => {
     <header className="kanban-header h-12 flex items-center px-4 gap-3 shrink-0 z-50">
       <Link to="/" className="flex items-center gap-2 shrink-0">
         <img src={logo} alt="JJ Corporation" className="h-7 w-7 rounded-full" />
-        <span className="font-bold text-sm tracking-tight hidden sm:block">JJ Corporation Kanban</span>
+        <span className="font-bold text-sm tracking-tight hidden sm:block">POLARYON</span>
       </Link>
 
-      <nav className="flex items-center gap-1 ml-2">
+      <nav className="flex items-center gap-1 ml-4 border-l border-white/20 pl-4">
         <Link
           to="/"
-          className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${location.pathname === '/' ? 'bg-primary/20' : 'hover:bg-primary/10'
+          className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${location.pathname === '/' ? 'bg-primary/20 text-white' : 'hover:bg-primary/10 text-white/80 hover:text-white'
             }`}
         >
           <LayoutDashboard className="h-3.5 w-3.5 inline mr-1" />
-          Dashboard
+          <span className="uppercase tracking-wider">Tarefas</span>
+        </Link>
+        <Link
+          to="/suppliers"
+          className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${location.pathname === '/suppliers' ? 'bg-primary/20 text-white' : 'hover:bg-primary/10 text-white/80 hover:text-white'
+            }`}
+        >
+          <span className="uppercase tracking-wider">Fornecedores e Transportadoras</span>
         </Link>
       </nav>
 
