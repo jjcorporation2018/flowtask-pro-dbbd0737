@@ -36,6 +36,7 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
     addComment, startTimer, stopTimer, resetTimer,
     addLabel, updateLabel, deleteLabel,
     globalSectionOrder, setGlobalSectionOrder, setUndoAction,
+    recentMilestoneTitles, addRecentMilestoneTitle,
   } = useKanbanStore();
   const card = cards.find(c => c.id === cardId);
   const list = card ? lists.find(l => l.id === card.listId) : null;
@@ -193,17 +194,13 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
   const totalM = Math.floor((totalTimeSecs % 3600) / 60);
 
   const recalculateCardDates = (milestones: Milestone[]) => {
-    let earliest: string | undefined;
     let latest: string | undefined;
     milestones.forEach(m => {
-      if (m.startDate) {
-        if (!earliest || new Date(m.startDate) < new Date(earliest)) earliest = m.startDate;
-      }
       if (m.dueDate) {
         if (!latest || new Date(m.dueDate) > new Date(latest)) latest = m.dueDate;
       }
     });
-    return { startDate: earliest, dueDate: latest };
+    return { dueDate: latest };
   };
 
   const handleAddMilestone = (title: string) => {
@@ -211,6 +208,7 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
     const newMs: Milestone = { id: crypto.randomUUID(), title: title.trim(), completed: false };
     const updated = [...(card.milestones || []), newMs];
     updateCard(cardId, { milestones: updated, ...recalculateCardDates(updated) });
+    addRecentMilestoneTitle(title.trim());
     setNewMilestoneTitle('');
   };
 
@@ -357,11 +355,7 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
                   </div>
                   <div className="flex flex-col sm:flex-row items-center gap-3 pl-5">
                     <div className="flex items-center gap-1.5 w-full sm:flex-1">
-                      <span className="text-[10px] text-muted-foreground w-8">Início:</span>
-                      <input type="date" value={ms.startDate || ''} onChange={(e) => handleUpdateMilestone(ms.id, { startDate: e.target.value })} className="bg-background cursor-pointer rounded px-1.5 py-1 text-[10px] outline-none border border-border flex-1 focus:border-primary" />
-                    </div>
-                    <div className="flex items-center gap-1.5 w-full sm:flex-1">
-                      <span className="text-[10px] text-muted-foreground w-8">Fim:</span>
+                      <span className="text-[10px] text-muted-foreground w-max font-semibold">Data de Entrega:</span>
                       <input type="date" value={ms.dueDate || ''} onChange={(e) => handleUpdateMilestone(ms.id, { dueDate: e.target.value })} className="bg-background cursor-pointer rounded px-1.5 py-1 text-[10px] outline-none border border-border flex-1 focus:border-primary" />
                     </div>
                   </div>
@@ -374,12 +368,14 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
               <button onClick={() => handleAddMilestone(newMilestoneTitle)} className="px-3 rounded bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors">Adicionar</button>
             </div>
 
-            <div className="flex gap-2 flex-wrap mb-4">
-              <span className="text-[10px] text-muted-foreground w-full">Sugestões de etapas:</span>
-              {['Planejamento', 'Execução', 'Revisão', 'Aprovação'].map(sug => (
-                <button key={sug} onClick={() => handleAddMilestone(sug)} className="px-2 py-1 rounded bg-secondary text-[10px] font-medium hover:bg-primary hover:text-primary-foreground transition-colors text-foreground">{sug}</button>
-              ))}
-            </div>
+            {recentMilestoneTitles.length > 0 && (
+              <div className="flex gap-2 flex-wrap mb-4">
+                <span className="text-[10px] text-muted-foreground w-full">Etapas recentes usadas:</span>
+                {recentMilestoneTitles.map(sug => (
+                  <button key={sug} onClick={() => handleAddMilestone(sug)} className="px-2 py-1 rounded bg-secondary text-[10px] font-medium hover:bg-primary hover:text-primary-foreground transition-colors text-foreground">{sug}</button>
+                ))}
+              </div>
+            )}
 
             <label className="flex items-center gap-1.5 text-xs text-muted-foreground mt-4 pt-3 border-t border-border focus-within:text-foreground transition-colors cursor-pointer">
               <input type="checkbox" checked={card.completed} onChange={() => updateCard(cardId, { completed: !card.completed })} className="rounded" />

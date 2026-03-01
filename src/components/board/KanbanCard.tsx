@@ -26,13 +26,18 @@ const KanbanCardComponent = ({ card, listColor, onClick }: Props) => {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   };
 
+  // Find nearest incomplete milestone
+  const nearestMilestone = card.milestones
+    ?.filter(m => !m.completed && m.dueDate)
+    .sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime())[0];
+
   const cardStyle = listColor ? {
     backgroundColor: hexToRgba(listColor, 0.08), // softer background 
     borderColor: hexToRgba(listColor, 0.2) // softer border
   } : {};
 
   return (
-    <div className={`kanban-card group shadow-md hover:shadow-lg transition-[box-shadow,border-color,background-color] duration-200 backdrop-blur-sm border relative overflow-hidden ${card.completed ? 'opacity-70 grayscale-[0.3]' : 'bg-card'}`} style={cardStyle} onClick={onClick}>
+    <div className={`kanban-card group shadow-lg hover:shadow-xl transition-[box-shadow,border-color,background-color,transform] duration-200 backdrop-blur-sm border border-border/60 relative overflow-hidden ${card.completed ? 'opacity-70 grayscale-[0.3] bg-muted' : 'bg-card'}`} style={cardStyle} onClick={onClick}>
       {/* Title */}
       <div className="flex items-start justify-between gap-2">
         <p className={`text-sm font-bold leading-snug text-foreground ${card.completed ? 'line-through text-muted-foreground' : ''}`}>{card.title}</p>
@@ -52,58 +57,57 @@ const KanbanCardComponent = ({ card, listColor, onClick }: Props) => {
         <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1 block">{card.summary}</p>
       )}
 
-      {/* Dates */}
-      {(card.startDate || card.dueDate) && (
-        <div className="flex items-center gap-2 mt-1.5">
-          {card.startDate && (
-            <span className="text-[10px] text-muted-foreground font-medium">
-              Início: {new Date(card.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-            </span>
-          )}
-          {card.startDate && card.dueDate && <span className="text-[10px] text-muted-foreground">→</span>}
-          {card.dueDate && (
-            <span className={`flex items-center gap-0.5 text-[10px] px-1 py-0.5 rounded font-medium ${card.completed ? 'bg-label-green/20 text-label-green' : isOverdue ? 'bg-label-red/20 text-label-red' : 'text-muted-foreground bg-secondary/50'
-              }`}>
-              <Calendar className="h-2.5 w-2.5" />
-              Entrega: {new Date(card.dueDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-            </span>
-          )}
-        </div>
-      )}
+      {/* Dates & Nearest Milestone */}
+      <div className="flex flex-col gap-1.5 mt-2">
+        {nearestMilestone && (
+          <div className={`flex items-center gap-1.5 text-[10px] px-2 py-1 rounded font-bold shadow-sm ${new Date(nearestMilestone.dueDate!) < new Date() ? 'bg-red-500 text-white' : 'bg-primary text-primary-foreground'}`}>
+            <Calendar className="h-3 w-3" />
+            <span className="truncate max-w-[120px]">{nearestMilestone.title}</span>
+            <span className="ml-auto flex-shrink-0 opacity-90">{new Date(nearestMilestone.dueDate!).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}</span>
+          </div>
+        )}
+
+        {!nearestMilestone && card.dueDate && (
+          <div className={`flex items-center w-max gap-1 text-[10px] px-2 py-1 rounded font-bold shadow-sm ${card.completed ? 'bg-label-green text-white' : isOverdue ? 'bg-red-500 text-white' : 'bg-secondary text-foreground'}`}>
+            <Calendar className="h-3 w-3" />
+            Entrega: {new Date(card.dueDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+          </div>
+        )}
+      </div>
 
       {/* Metadata */}
       {(checkTotal > 0 || card.comments.length > 0 || card.attachments.length > 0 || card.timeEntries.length > 0 || card.assignee || hasOverdueMilestone || (card.milestones && card.milestones.length > 0)) && (
         <div className="flex items-center gap-2 mt-2 flex-wrap">
           {hasOverdueMilestone && (
-            <span className="flex items-center gap-0.5 text-[10px] text-label-red bg-label-red/10 px-1 py-0.5 rounded font-medium" title="Existem etapas (milestones) atrasadas neste cartão!">
+            <span className="flex items-center gap-0.5 text-[10px] text-label-red bg-label-red/10 px-1 py-0.5 rounded font-bold shadow-sm" title="Existem etapas (milestones) atrasadas neste cartão!">
               <Clock className="h-2.5 w-2.5" /> Atraso
             </span>
           )}
           {card.milestones && card.milestones.length > 0 && !hasOverdueMilestone && (
-            <span className="flex items-center gap-0.5 text-[10px] text-blue-400 bg-blue-400/10 px-1 py-0.5 rounded" title={`${card.milestones.filter(m => m.completed).length}/${card.milestones.length} etapas concluídas`}>
+            <span className="flex items-center gap-0.5 text-[10px] text-blue-500 bg-blue-500/10 px-1 py-0.5 rounded font-bold" title={`${card.milestones.filter(m => m.completed).length}/${card.milestones.length} etapas concluídas`}>
               <CheckSquare className="h-2.5 w-2.5" /> {card.milestones.filter(m => m.completed).length}/{card.milestones.length}
             </span>
           )}
           {checkTotal > 0 && (
-            <span className={`flex items-center gap-0.5 text-[10px] ${checkDone === checkTotal ? 'text-label-green' : 'text-muted-foreground'}`}>
+            <span className={`flex items-center gap-0.5 text-[10px] font-bold ${checkDone === checkTotal ? 'text-label-green' : 'text-foreground/70'}`}>
               <CheckSquare className="h-2.5 w-2.5" />
               {checkDone}/{checkTotal}
             </span>
           )}
           {card.comments.length > 0 && (
-            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+            <span className="flex items-center gap-0.5 text-[10px] text-foreground/70 font-bold">
               <MessageSquare className="h-2.5 w-2.5" />
               {card.comments.length}
             </span>
           )}
           {card.attachments.length > 0 && (
-            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+            <span className="flex items-center gap-0.5 text-[10px] text-foreground/70 font-bold">
               <Paperclip className="h-2.5 w-2.5" />
               {card.attachments.length}
             </span>
           )}
           {card.timeEntries.length > 0 && (
-            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+            <span className="flex items-center gap-0.5 text-[10px] text-foreground/70 font-bold">
               <Clock className="h-2.5 w-2.5" />
               {Math.round(card.timeEntries.reduce((t, e) => t + e.duration, 0) / 60)}m
             </span>

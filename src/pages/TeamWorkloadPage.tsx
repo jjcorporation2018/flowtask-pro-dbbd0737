@@ -7,6 +7,7 @@ import { Card } from '@/types/kanban';
 export default function TeamWorkloadPage() {
     const { members, cards, boards, lists, labels } = useKanbanStore();
     const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+    const [period, setPeriod] = useState<'week' | 'month' | 'year'>('week');
 
     // Filter only active cards
     const activeCards = cards.filter(c => !c.archived && !c.trashed);
@@ -21,7 +22,33 @@ export default function TeamWorkloadPage() {
     };
 
     const getMemberStats = (memberId: string) => {
-        const memberCards = activeCards.filter(c => c.assignee === memberId);
+        const now = new Date();
+        const startOfPeriod = new Date();
+        if (period === 'week') {
+            const day = startOfPeriod.getDay();
+            const diff = startOfPeriod.getDate() - day + (day === 0 ? -6 : 1); // get Monday
+            startOfPeriod.setDate(diff);
+            startOfPeriod.setHours(0, 0, 0, 0);
+        } else if (period === 'month') {
+            startOfPeriod.setDate(1);
+            startOfPeriod.setHours(0, 0, 0, 0);
+        } else if (period === 'year') {
+            startOfPeriod.setMonth(0, 1);
+            startOfPeriod.setHours(0, 0, 0, 0);
+        }
+
+        const memberCards = activeCards.filter(c => {
+            if (c.assignee !== memberId) return false;
+
+            // Check if card belongs to the period based on its dates or completed status
+            // Time entries within the period could also be checked, but we'll use due/start/completion dates
+            let cardDate = new Date(c.createdAt || Date.now());
+            if (c.dueDate) cardDate = new Date(c.dueDate);
+            else if (c.startDate) cardDate = new Date(c.startDate);
+
+            return cardDate >= startOfPeriod;
+        });
+
         const completed = memberCards.filter(c => c.completed).length;
         const pending = memberCards.length - completed;
         const overdue = memberCards.filter(c => !c.completed && c.dueDate && new Date(c.dueDate) < new Date()).length;
@@ -41,7 +68,7 @@ export default function TeamWorkloadPage() {
 
     return (
         <div className="flex-1 flex flex-col overflow-hidden bg-background">
-            <div className="p-6 border-b border-border bg-card shrink-0">
+            <div className="p-6 border-b border-border bg-card shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center text-primary">
                         <Users className="w-5 h-5" />
@@ -50,6 +77,18 @@ export default function TeamWorkloadPage() {
                         <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/60">Equipe e Fluxo de Trabalho</h1>
                         <p className="text-sm text-muted-foreground">Métricas de produtividade e cards por membro</p>
                     </div>
+                </div>
+
+                <div className="flex items-center bg-secondary rounded-lg p-1">
+                    <button onClick={() => setPeriod('week')} className={`px-4 py-1.5 rounded-md text-xs font-medium transition-colors ${period === 'week' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+                        Esta Semana
+                    </button>
+                    <button onClick={() => setPeriod('month')} className={`px-4 py-1.5 rounded-md text-xs font-medium transition-colors ${period === 'month' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+                        Este Mês
+                    </button>
+                    <button onClick={() => setPeriod('year')} className={`px-4 py-1.5 rounded-md text-xs font-medium transition-colors ${period === 'year' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+                        Este Ano
+                    </button>
                 </div>
             </div>
 

@@ -23,6 +23,10 @@ interface KanbanState {
   setBoardPreference: (boardId: string, prefs: Partial<{ viewMode: 'kanban' | 'calendar' | 'list', sortBy: 'default' | 'priority' | 'assignee' | 'dueDate' }>) => void;
   toggleTheme: () => void;
   setUiZoom: (zoom: number) => void;
+  // milestones memory
+  recentMilestoneTitles: string[];
+  addRecentMilestoneTitle: (title: string) => void;
+  removeRecentMilestoneTitle: (title: string) => void;
   // notifications
   notifications: Notification[];
   addNotification: (title: string, message: string, link?: string) => void;
@@ -82,6 +86,7 @@ export const useKanbanStore = create<KanbanState>()(
       undoAction: null,
       isDark: window.matchMedia('(prefers-color-scheme: dark)').matches,
       uiZoom: 1,
+      recentMilestoneTitles: [],
       globalSectionOrder: ['summary', 'labels', 'assignee', 'dates', 'estimated', 'description', 'attachments', 'checklist', 'timer', 'comments'],
       boardPreferences: {},
 
@@ -116,6 +121,15 @@ export const useKanbanStore = create<KanbanState>()(
         return { isDark: next };
       }),
 
+      // Milestones Memory
+      addRecentMilestoneTitle: (title) => set(s => {
+        const unique = new Set([title, ...s.recentMilestoneTitles]);
+        return { recentMilestoneTitles: Array.from(unique).slice(0, 10) }; // Keep top 10
+      }),
+      removeRecentMilestoneTitle: (title) => set(s => ({
+        recentMilestoneTitles: s.recentMilestoneTitles.filter(t => t !== title)
+      })),
+
       // Notifications
       addNotification: (title, message, link) => set(s => ({
         notifications: [{ id: uid(), title, message, link, read: false, createdAt: new Date().toISOString() }, ...s.notifications]
@@ -133,7 +147,17 @@ export const useKanbanStore = create<KanbanState>()(
         folders: [...s.folders, { id: uid(), name, color, icon: '📁', sideImage, createdAt: new Date().toISOString() }]
       })),
       updateFolder: (id, data) => set(s => ({
-        folders: s.folders.map(f => f.id === id ? { ...f, ...data } : f)
+        folders: s.folders.map(f => {
+          if (f.id === id) {
+            const isTrashing = data.trashed === true && !f.trashed;
+            return {
+              ...f,
+              ...data,
+              trashedAt: isTrashing ? new Date().toISOString() : (data.trashed === false ? undefined : f.trashedAt)
+            }
+          }
+          return f;
+        })
       })),
       deleteFolder: (id) => set(s => {
         const boardIds = s.boards.filter(b => b.folderId === id).map(b => b.id);
@@ -151,7 +175,17 @@ export const useKanbanStore = create<KanbanState>()(
         boards: [...s.boards, { id: uid(), folderId, name, backgroundColor: color, createdAt: new Date().toISOString() }]
       })),
       updateBoard: (id, data) => set(s => ({
-        boards: s.boards.map(b => b.id === id ? { ...b, ...data } : b)
+        boards: s.boards.map(b => {
+          if (b.id === id) {
+            const isTrashing = data.trashed === true && !b.trashed;
+            return {
+              ...b,
+              ...data,
+              trashedAt: isTrashing ? new Date().toISOString() : (data.trashed === false ? undefined : b.trashedAt)
+            }
+          }
+          return b;
+        })
       })),
       deleteBoard: (id) => set(s => {
         const listIds = s.lists.filter(l => l.boardId === id).map(l => l.id);
@@ -168,7 +202,17 @@ export const useKanbanStore = create<KanbanState>()(
         return { lists: [...s.lists, { id: uid(), boardId, title, position: maxPos + 1 }] };
       }),
       updateList: (id, data) => set(s => ({
-        lists: s.lists.map(l => l.id === id ? { ...l, ...data } : l)
+        lists: s.lists.map(l => {
+          if (l.id === id) {
+            const isTrashing = data.trashed === true && !l.trashed;
+            return {
+              ...l,
+              ...data,
+              trashedAt: isTrashing ? new Date().toISOString() : (data.trashed === false ? undefined : l.trashedAt)
+            }
+          }
+          return l;
+        })
       })),
       deleteList: (id) => set(s => ({
         lists: s.lists.filter(l => l.id !== id),
@@ -225,6 +269,18 @@ export const useKanbanStore = create<KanbanState>()(
           cards: s.cards.filter(c => {
             if (!c.trashed || !c.trashedAt) return true;
             return new Date(c.trashedAt) >= threshold;
+          }),
+          lists: s.lists.filter(l => {
+            if (!l.trashed || !l.trashedAt) return true;
+            return new Date(l.trashedAt) >= threshold;
+          }),
+          boards: s.boards.filter(b => {
+            if (!b.trashed || !b.trashedAt) return true;
+            return new Date(b.trashedAt) >= threshold;
+          }),
+          folders: s.folders.filter(f => {
+            if (!f.trashed || !f.trashedAt) return true;
+            return new Date(f.trashedAt) >= threshold;
           })
         };
       }),

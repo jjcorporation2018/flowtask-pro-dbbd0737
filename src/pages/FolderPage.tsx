@@ -1,6 +1,6 @@
 import { useParams, Link } from 'react-router-dom';
 import { useKanbanStore } from '@/store/kanban-store';
-import { Plus, Trash2, Pencil, Palette, Archive } from 'lucide-react';
+import { Plus, Trash2, Pencil, Palette, Archive, Star } from 'lucide-react';
 import { useState } from 'react';
 import { BOARD_COLORS } from '@/types/kanban';
 import { motion } from 'framer-motion';
@@ -12,7 +12,7 @@ const FolderPage = () => {
   const navigate = useNavigate();
   const { folders, boards, lists, cards, addBoard, updateBoard, updateFolder, uiZoom } = useKanbanStore();
   const folder = folders.find(f => f.id === folderId);
-  const folderBoards = boards.filter(b => b.folderId === folderId);
+  const folderBoards = boards.filter(b => b.folderId === folderId && !b.trashed);
 
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState('');
@@ -89,7 +89,16 @@ const FolderPage = () => {
           </button>
 
           <div className="ml-auto flex items-center gap-2">
-            {/* The delete folder button was removed per user request */}
+            <ConfirmAction
+              title="Excluir Pasta?"
+              description="A pasta será movida para a lixeira. Boards dentro dela continuarão existindo até serem excluídos."
+              onConfirm={() => { updateFolder(folder.id, { trashed: true }); navigate('/'); }}
+              destructive
+            >
+              <button className="p-1.5 rounded bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-colors" title="Excluir Pasta">
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </ConfirmAction>
           </div>
         </div>
 
@@ -116,21 +125,27 @@ const FolderPage = () => {
                     </div>
                   </Link>
                   {/* Board actions */}
-                  <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => setEditingBoardId(editingBoardId === board.id ? null : board.id)}
-                      className="p-1 rounded hover:bg-black/20" style={{ color: 'rgba(255,255,255,0.9)' }}>
+                  <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-20" onClick={e => e.preventDefault()}>
+                    <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); updateBoard(board.id, { isFavorite: !board.isFavorite }); }}
+                      className="p-1.5 rounded hover:bg-black/30 transition-colors" style={{ color: 'rgba(255,255,255,0.9)' }}>
+                      <Star className={`h-3.5 w-3.5 ${board.isFavorite ? 'fill-yellow-400 text-yellow-400' : ''}`} />
+                    </button>
+                    <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); setEditingBoardId(editingBoardId === board.id ? null : board.id); }}
+                      className="p-1.5 rounded hover:bg-black/30 transition-colors" style={{ color: 'rgba(255,255,255,0.9)' }}>
                       <Palette className="h-3.5 w-3.5" />
                     </button>
-                    <ConfirmAction
-                      title="Mover Board para Lixeira?"
-                      description="O board será movido para a lixeira."
-                      onConfirm={() => updateBoard(board.id, { trashed: true })}
-                      destructive
-                    >
-                      <button className="p-1 rounded hover:bg-black/20" style={{ color: 'rgba(255,255,255,0.9)' }}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </ConfirmAction>
+                    <div onClick={e => e.stopPropagation()}>
+                      <ConfirmAction
+                        title="Mover Board para Lixeira?"
+                        description="O board será movido para a lixeira e pode ser restaurado depois."
+                        onConfirm={() => updateBoard(board.id, { trashed: true })}
+                        destructive
+                      >
+                        <button className="p-1.5 rounded hover:bg-black/30 transition-colors" style={{ color: 'rgba(255,255,255,0.9)' }}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </ConfirmAction>
+                    </div>
                   </div>
                   {/* Color picker for board */}
                   {editingBoardId === board.id && (

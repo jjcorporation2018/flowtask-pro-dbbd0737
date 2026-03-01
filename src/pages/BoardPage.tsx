@@ -1,6 +1,6 @@
 import { useParams, Link } from 'react-router-dom';
 import { useKanbanStore } from '@/store/kanban-store';
-import { Plus, ArrowLeft, Undo2, Archive as ArchiveIcon, Trash2, Clock, User } from 'lucide-react';
+import { Plus, ArrowLeft, Undo2, Archive as ArchiveIcon, Trash2, Clock, User, Star } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import KanbanListComponent from '@/components/board/KanbanList';
@@ -14,9 +14,9 @@ const BoardPage = () => {
   const { boardId } = useParams<{ boardId: string }>();
   const {
     boards, lists, folders, cards, members, uiZoom,
-    addList, updateList, deleteList, reorderLists, moveCard, reorderCards, updateCard, deleteCard,
+    addList, updateList, deleteList, reorderLists, moveCard, reorderCards, updateCard, deleteCard, updateBoard,
     undoAction, setUndoAction, executeUndo, clearUndoAction,
-    boardPreferences, setBoardPreference
+    boardPreferences, setBoardPreference, isDark
   } = useKanbanStore();
   const board = boards.find(b => b.id === boardId);
   const folder = board ? folders.find(f => f.id === board.folderId) : null;
@@ -151,7 +151,11 @@ const BoardPage = () => {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   };
 
-  const boardStyle = { background: `linear-gradient(to bottom right, ${hexToRgba(board.backgroundColor, 0.15)}, rgba(0,0,0,0.8))` };
+  const boardStyle = {
+    background: isDark
+      ? `linear-gradient(to bottom right, ${hexToRgba(board.backgroundColor, 0.2)}, rgba(0,0,0,0.9))`
+      : `${hexToRgba(board.backgroundColor, 0.15)}`
+  };
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden relative" style={boardStyle}>
@@ -165,6 +169,11 @@ const BoardPage = () => {
         <h2 className="font-bold text-sm" style={{ color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
           {board.name}
         </h2>
+
+        <button onClick={() => updateBoard(board.id, { isFavorite: !board.isFavorite })}
+          className="p-1 rounded hover:bg-white/20 transition-colors ml-1" title="Favoritar">
+          <Star className={`h-4 w-4 transition-colors ${board.isFavorite ? 'fill-yellow-400 text-yellow-400' : 'text-white/70 hover:text-white'}`} />
+        </button>
 
         <div className="ml-auto flex items-center gap-2 overflow-x-auto custom-scrollbar pb-0 overflow-y-hidden">
           <div className="flex items-center bg-white/10 rounded overflow-hidden shrink-0">
@@ -218,13 +227,13 @@ const BoardPage = () => {
           <Droppable droppableId="board" type="LIST" direction="horizontal">
             {(provided) => (
               <div ref={provided.innerRef} {...provided.droppableProps}
-                className="flex-1 flex gap-3 overflow-x-auto overflow-y-hidden p-3 items-start"
+                className="flex-1 flex gap-3 overflow-x-auto overflow-y-hidden p-3 items-start custom-scrollbar h-full min-h-0"
                 style={{ zoom: uiZoom } as React.CSSProperties}>
                 {boardLists.map((list, index) => (
                   <Draggable key={list.id} draggableId={list.id} index={index}>
                     {(provided, snapshot) => (
                       <div ref={provided.innerRef} {...provided.draggableProps}
-                        className={`shrink-0 transition-shadow ${snapshot.isDragging ? 'shadow-xl rotate-2' : ''}`}>
+                        className={`shrink-0 transition-shadow max-h-full flex flex-col ${snapshot.isDragging ? 'shadow-xl rotate-2' : ''}`}>
                         <KanbanListComponent list={list} dragHandleProps={provided.dragHandleProps} onCardClick={setSelectedCardId} />
                       </div>
                     )}

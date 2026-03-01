@@ -1,5 +1,5 @@
 import { useKanbanStore } from '@/store/kanban-store';
-import { BarChart3, CheckCircle2, Clock, AlertTriangle, TrendingUp, FolderOpen, Filter, Tag } from 'lucide-react';
+import { BarChart3, CheckCircle2, Clock, AlertTriangle, TrendingUp, FolderOpen, Filter, Tag, Star } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -116,6 +116,34 @@ const Dashboard = () => {
             </motion.div>
           ))}
         </div>
+
+        {/* Favorite Boards */}
+        {activeBoards.some(b => b.isFavorite) && (
+          <div className="mb-8">
+            <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
+              <Star className="h-4 w-4 bg-yellow-400 text-white rounded-full p-0.5" fill="currentColor" />
+              Boards Favoritos
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {activeBoards.filter(b => b.isFavorite).map((board, i) => (
+                <motion.div key={board.id} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.05 }} className="relative group">
+                  <Link to={`/board/${board.id}`}
+                    className="block rounded-lg h-24 p-4 relative overflow-hidden transition-transform hover:scale-[1.02] bg-cover bg-center border border-border shadow-sm"
+                    style={{ backgroundImage: board.backgroundImage ? `url(${board.backgroundImage})` : 'none', backgroundColor: board.backgroundColor }}>
+                    {board.backgroundImage && (
+                      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+                    )}
+                    <div className="relative z-10 flex flex-col h-full">
+                      <span className="font-bold text-sm text-white drop-shadow-md line-clamp-2">
+                        {board.name}
+                      </span>
+                    </div>
+                  </Link>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="grid lg:grid-cols-3 gap-6 mb-8">
           {/* Chart */}

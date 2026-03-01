@@ -7,6 +7,7 @@ export interface Folder {
   createdAt: string;
   archived?: boolean;
   trashed?: boolean;
+  trashedAt?: string;
 }
 
 export interface Notification {
@@ -27,6 +28,8 @@ export interface Board {
   createdAt: string;
   archived?: boolean;
   trashed?: boolean;
+  trashedAt?: string;
+  isFavorite?: boolean;
 }
 
 export interface KanbanList {
@@ -44,6 +47,7 @@ export interface KanbanList {
   }>;
   archived?: boolean;
   trashed?: boolean;
+  trashedAt?: string;
 }
 
 export interface Label {
@@ -91,7 +95,6 @@ export interface Attachment {
 export interface Milestone {
   id: string;
   title: string;
-  startDate?: string;
   dueDate?: string;
   completed: boolean;
 }

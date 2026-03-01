@@ -14,7 +14,7 @@ interface Props {
 }
 
 const KanbanListComponent = ({ list, dragHandleProps, onCardClick }: Props) => {
-  const { cards, boards, addCard, deleteList, updateList, boardPreferences, labels } = useKanbanStore();
+  const { cards, boards, addCard, deleteList, updateList, boardPreferences, labels, isDark } = useKanbanStore();
   const prefs = boardPreferences[list.boardId] || { viewMode: 'kanban', sortBy: 'default' };
 
   const listCards = cards
@@ -95,8 +95,8 @@ const KanbanListComponent = ({ list, dragHandleProps, onCardClick }: Props) => {
   };
 
   const listStyle: React.CSSProperties = list.color
-    ? { background: hexToRgba(list.color, 0.1), minWidth: 280, maxWidth: 280, backdropFilter: 'blur(8px)', borderColor: hexToRgba(list.color, 0.2), borderWidth: '1px' }
-    : { minWidth: 280, maxWidth: 280, background: 'rgba(255, 255, 255, 0.03)', backdropFilter: 'blur(8px)', borderWidth: '1px', borderColor: 'rgba(255, 255, 255, 0.1)' };
+    ? { background: isDark ? hexToRgba(list.color, 0.1) : hexToRgba(list.color, 0.15), minWidth: 280, maxWidth: 280, backdropFilter: 'blur(12px)', borderColor: hexToRgba(list.color, isDark ? 0.2 : 0.4), borderWidth: '1px' }
+    : { minWidth: 280, maxWidth: 280, background: isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(255, 255, 255, 0.85)', backdropFilter: 'blur(12px)', borderWidth: '1px', borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' };
 
   const toggleAutomationType = (type: 'archive' | 'trash' | 'move-to-board' | 'mark-completed' | 'mark-milestone', targetBoardId?: string, targetMilestoneTitle?: string) => {
     const current = list.automations || [];
@@ -112,7 +112,7 @@ const KanbanListComponent = ({ list, dragHandleProps, onCardClick }: Props) => {
   };
 
   return (
-    <div className="kanban-list flex flex-col shadow-sm rounded-lg max-h-full" style={listStyle}>
+    <div className={`kanban-list flex flex-col rounded-lg max-h-full ${isDark ? 'shadow-md' : 'shadow-lg shadow-black/10'}`} style={listStyle}>
       {/* List header */}
       <div className="flex items-center gap-1 mb-2 px-1">
         <div {...dragHandleProps} className="cursor-grab active:cursor-grabbing p-0.5">
@@ -303,7 +303,7 @@ const KanbanListComponent = ({ list, dragHandleProps, onCardClick }: Props) => {
       )}
 
       {/* Cards */}
-      <div className="flex-1 flex flex-col overflow-y-auto overflow-x-hidden custom-scrollbar">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar min-h-0">
         <Droppable droppableId={list.id} type="CARD">
           {(provided, snapshot) => (
             <div
@@ -318,7 +318,11 @@ const KanbanListComponent = ({ list, dragHandleProps, onCardClick }: Props) => {
                       ref={provided.innerRef}
                       {...provided.draggableProps}
                       {...provided.dragHandleProps}
-                      className={snapshot.isDragging ? 'opacity-95 scale-[1.02] rotate-1 shadow-2xl ring-2 ring-primary ring-offset-1 z-50' : 'transition-shadow shadow-sm hover:shadow'}
+                      className={snapshot.isDragging ? 'shadow-2xl ring-2 ring-primary/50 relative z-50 rounded-md cursor-grabbing bg-card' : 'transition-[box-shadow] hover:shadow-md'}
+                      style={{
+                        ...provided.draggableProps.style,
+                        ...(snapshot.isDropAnimating && !snapshot.draggingOver ? { transitionDuration: '0.001s' } : {})
+                      }}
                     >
                       <KanbanCardComponent card={card} listColor={list.color} onClick={() => onCardClick(card.id)} />
                     </div>
