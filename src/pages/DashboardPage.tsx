@@ -1,12 +1,12 @@
 import { useKanbanStore } from '@/store/kanban-store';
-import { BarChart3, CheckCircle2, Clock, AlertTriangle, TrendingUp, FolderOpen, Filter, Tag, Star } from 'lucide-react';
+import { BarChart3, CheckCircle2, Clock, AlertTriangle, TrendingUp, FolderOpen, Filter, Tag, Star, Building2, Truck, Briefcase } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useState, useMemo } from 'react';
 
 const Dashboard = () => {
-  const { folders, boards, lists, cards, labels } = useKanbanStore();
+  const { folders, boards, lists, cards, labels, companies } = useKanbanStore();
 
   // Filters
   const [filterBoard, setFilterBoard] = useState<string>('all');
@@ -145,6 +145,7 @@ const Dashboard = () => {
           </div>
         )}
 
+
         <div className="grid lg:grid-cols-3 gap-6 mb-8">
           {/* Chart */}
           <div className="lg:col-span-2 bg-card rounded-lg border border-border p-4">
@@ -255,8 +256,8 @@ const Dashboard = () => {
             )}
           </div>
         </div>
-      </motion.div>
-    </div>
+      </motion.div >
+    </div >
   );
 };
 

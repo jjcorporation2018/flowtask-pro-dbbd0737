@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Folder, Board, KanbanList, Card, Label, DEFAULT_LABELS, ChecklistItem, Comment, Attachment, WorkspaceMember, Notification, Company } from '@/types/kanban';
+import { Folder, Board, KanbanList, Card, Label, DEFAULT_LABELS, ChecklistItem, Comment, Attachment, WorkspaceMember, Notification, Company, Route } from '@/types/kanban';
 
 const uid = () => crypto.randomUUID();
 
@@ -12,6 +12,7 @@ interface KanbanState {
   labels: Label[];
   members: WorkspaceMember[];
   companies: Company[];
+  routes: Route[];
 
   undoAction: { cardId: string; previousListId: string; previousPosition: number; message: string; type: 'archived' | 'trashed' | 'moved' } | null;
   setUndoAction: (action: KanbanState['undoAction']) => void;
@@ -41,6 +42,12 @@ interface KanbanState {
   updateCompany: (id: string, data: Partial<Company>) => void;
   restoreCompany: (id: string) => void;
   permanentlyDeleteCompany: (id: string) => void;
+  // routes
+  addRoute: (routeData: Omit<Route, 'id' | 'createdAt'>) => void;
+  updateRoute: (id: string, data: Partial<Route>) => void;
+  deleteRoute: (id: string) => void; // Soft delete
+  restoreRoute: (id: string) => void;
+  permanentlyDeleteRoute: (id: string) => void;
   // folders
   addFolder: (name: string, color?: string, sideImage?: string) => void;
   updateFolder: (id: string, data: Partial<Folder>) => void;
@@ -92,6 +99,7 @@ export const useKanbanStore = create<KanbanState>()(
         { id: 'm3', name: 'Carlos Santos', email: 'carlos@jjcorp.com', avatar: 'https://i.pravatar.cc/150?u=carlos' },
       ],
       companies: [],
+      routes: [],
       undoAction: null,
       isDark: window.matchMedia('(prefers-color-scheme: dark)').matches,
       uiZoom: 1,
@@ -166,6 +174,23 @@ export const useKanbanStore = create<KanbanState>()(
       })),
       permanentlyDeleteCompany: (id) => set(s => ({
         companies: s.companies.filter(c => c.id !== id)
+      })),
+
+      // Routes
+      addRoute: (routeData) => set(s => ({
+        routes: [...s.routes, { ...routeData, id: uid(), createdAt: new Date().toISOString() }]
+      })),
+      updateRoute: (id, data) => set(s => ({
+        routes: s.routes.map(r => r.id === id ? { ...r, ...data } : r)
+      })),
+      deleteRoute: (id) => set(s => ({
+        routes: s.routes.map(r => r.id === id ? { ...r, trashed: true } : r)
+      })),
+      restoreRoute: (id) => set(s => ({
+        routes: s.routes.map(r => r.id === id ? { ...r, trashed: false } : r)
+      })),
+      permanentlyDeleteRoute: (id) => set(s => ({
+        routes: s.routes.filter(r => r.id !== id)
       })),
 
       // Folders

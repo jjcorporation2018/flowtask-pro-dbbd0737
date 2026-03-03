@@ -1,3 +1,22 @@
+export interface CompanyContact {
+  id: string;
+  label: string; // e.g., "Financeiro", "Vendas", "Geral"
+  phone?: string;
+  email?: string;
+  isWhatsapp?: boolean;
+}
+
+export interface Route {
+  id: string;
+  name: string; // e.g., "Rio - São Paulo"
+  origin: string;
+  destination: string;
+  transporterIds: string[]; // Ordered list of preferred transporters
+  isFavorite?: boolean;
+  trashed?: boolean;
+  createdAt: string;
+}
+
 export interface Folder {
   id: string;
   name: string;
@@ -25,9 +44,25 @@ export interface Company {
   logradouro: string;
   numero: string;
   complemento: string;
-  ddd_telefone_1: string;
-  ddd_telefone_2: string;
-  email: string;
+
+  // Legacy fields (kept for compatibility)
+  ddd_telefone_1?: string;
+  ddd_telefone_2?: string;
+  email?: string;
+
+  // New fields
+  contacts?: CompanyContact[];
+  comments?: string;
+
+  // Supplier specific
+  amostra?: boolean;
+  frete?: 'CIF' | 'FOB' | '';
+  mantemOferta?: string;
+  areasAtuacao?: string[];
+
+  // Transporter specific
+  seguroCarga?: boolean;
+
   customLink?: string;
   rating?: number;
   isFavorite?: boolean;

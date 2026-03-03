@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useKanbanStore } from '@/store/kanban-store';
-import { FolderOpen, Plus, ChevronRight, ChevronLeft, LayoutGrid, Calendar, Users, Building2, Truck, Briefcase } from 'lucide-react';
+import { FolderOpen, Plus, ChevronRight, ChevronLeft, LayoutGrid, Calendar, Users, Building2, Truck, Briefcase, MapPin } from 'lucide-react';
 import { useState } from 'react';
 
 const AppSidebar = () => {
@@ -50,23 +50,6 @@ const AppSidebar = () => {
 
       {isCompanyModule ? (
         <div className="flex-1 p-3 mt-6 flex flex-col gap-6">
-          <div className="flex flex-col gap-2">
-            {!isCollapsed && <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2">Módulo Simplificado</span>}
-            <div className="px-2 py-3 bg-primary/10 rounded-lg border border-primary/20 flex flex-col gap-2 text-center items-center justify-center mb-2">
-              {!isCollapsed ? (
-                <>
-                  <Building2 className="h-6 w-6 text-primary" />
-                  <p className="text-xs text-sidebar-foreground font-medium">Gestão de Empresas</p>
-                  <p className="text-[10px] text-muted-foreground">O menu completo fica oculto nesta tela para foco.</p>
-                </>
-              ) : (
-                <span title="Gestão de Empresas">
-                  <Building2 className="h-6 w-6 text-primary" />
-                </span>
-              )}
-            </div>
-          </div>
-
           <div className="flex flex-col gap-1">
             {!isCollapsed && <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-2 mb-1">Navegação</span>}
             <Link to="/suppliers" className={`flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors ${location.pathname === '/suppliers' ? 'bg-primary text-primary-foreground font-medium' : 'text-sidebar-foreground hover:bg-sidebar-accent'}`} title="Pesquisa CNPJ">
@@ -75,8 +58,11 @@ const AppSidebar = () => {
             <Link to="/suppliers-list" className={`flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors ${location.pathname === '/suppliers-list' ? 'bg-primary text-primary-foreground font-medium' : 'text-sidebar-foreground hover:bg-sidebar-accent'}`} title="Fornecedores">
               <Briefcase className="h-4 w-4 shrink-0" /> {!isCollapsed && <span>Fornecedores</span>}
             </Link>
-            <Link to="/transporters-list" className={`flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors ${location.pathname === '/transporters-list' ? 'bg-primary text-primary-foreground font-medium' : 'text-sidebar-foreground hover:bg-sidebar-accent'}`} title="Transportadoras">
+            <Link to="/transporters-list" className={`flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors ${location.pathname === '/transporters-list' && !location.search.includes('tab=routes') ? 'bg-primary text-primary-foreground font-medium' : 'text-sidebar-foreground hover:bg-sidebar-accent'}`} title="Transportadoras">
               <Truck className="h-4 w-4 shrink-0" /> {!isCollapsed && <span>Transportadoras</span>}
+            </Link>
+            <Link to="/transporters-list?tab=routes" className={`flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors ${location.pathname === '/transporters-list' && location.search.includes('tab=routes') ? 'bg-primary text-primary-foreground font-medium' : 'text-sidebar-foreground hover:bg-sidebar-accent'}`} title="Rotas de Atuação">
+              <MapPin className="h-4 w-4 shrink-0" /> {!isCollapsed && <span>Rotas de Atuação</span>}
             </Link>
           </div>
         </div>

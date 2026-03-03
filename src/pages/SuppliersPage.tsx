@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Search, Building2, Truck, Briefcase, MapPin, Phone, Mail, Loader2, Check, ExternalLink, Star, Heart } from 'lucide-react';
 import { useKanbanStore } from '@/store/kanban-store';
 import { toast } from 'sonner';
+import { Link } from 'react-router-dom';
 
 interface CnpjResult {
     cnpj: string;
@@ -27,7 +28,10 @@ const SuppliersPage = () => {
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<CnpjResult | null>(null);
 
-    const { addCompany } = useKanbanStore();
+    const [filterRegiao, setFilterRegiao] = useState('');
+    const [filterArea, setFilterArea] = useState('');
+
+    const { addCompany, companies, uiZoom } = useKanbanStore();
 
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -73,7 +77,15 @@ const SuppliersPage = () => {
             complemento: result.complemento,
             ddd_telefone_1: result.ddd_telefone_1,
             ddd_telefone_2: result.ddd_telefone_2,
-            email: result.email || ''
+            email: result.email || '',
+
+            // Initialize new fields
+            contacts: [],
+            comments: '',
+            amostra: false,
+            frete: '',
+            mantemOferta: '',
+            areasAtuacao: []
         });
 
         toast.success(`Salvo como ${type} com sucesso!`);
@@ -101,243 +113,303 @@ const SuppliersPage = () => {
     };
 
     return (
-        <div className="flex-1 overflow-auto bg-background p-6 custom-scrollbar relative h-full">
-            <div className="max-w-4xl mx-auto space-y-6">
+        <div className="flex-1 bg-background relative" style={{ zoom: uiZoom, transform: `scale(${uiZoom})`, transformOrigin: 'top left', width: `${100 / uiZoom}%`, height: `${100 / uiZoom}%` }}>
+            <div className="h-full overflow-auto p-6 custom-scrollbar">
+                <div className="max-w-4xl mx-auto space-y-6">
 
-                {/* Header section */}
-                <div className="flex items-center gap-3 pb-4 border-b border-border">
-                    <div className="p-3 bg-primary/10 rounded-lg text-primary">
-                        <Building2 className="h-6 w-6" />
-                    </div>
-                    <div>
-                        <h1 className="text-2xl font-bold tracking-tight">Fornecedores e Transportadoras</h1>
-                        <p className="text-sm text-muted-foreground mt-1">
-                            Consulte e adicione novas empresas ao diretório automaticamente a partir do CNPJ.
-                        </p>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* Search Column */}
-                    <div className="md:col-span-1 space-y-6">
-                        <div className="bg-card rounded-xl border border-border/50 shadow-sm p-6">
-                            <h2 className="text-lg font-semibold flex items-center gap-2 mb-4 text-foreground/80">
-                                <Search className="h-5 w-5" />
-                                Consultar CNPJ
-                            </h2>
-                            <form onSubmit={handleSearch} className="space-y-4">
-                                <div className="relative">
-                                    <input
-                                        type="text"
-                                        placeholder="Digite o CNPJ (apenas números)"
-                                        className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-border bg-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-                                        value={cnpj}
-                                        onChange={handleCnpjChange}
-                                        maxLength={18} // Max length for formatted CNPJ
-                                    />
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                </div>
-                                <button
-                                    type="submit"
-                                    disabled={loading || cnpj.replace(/\D/g, '').length !== 14}
-                                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:bg-primary/50 disabled:cursor-not-allowed"
-                                >
-                                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                                    Consultar CNPJ
-                                </button>
-                            </form>
+                    {/* Header section */}
+                    <div className="flex items-center gap-3 pb-4 border-b border-border">
+                        <div className="p-3 bg-primary/10 rounded-lg text-primary">
+                            <Building2 className="h-6 w-6" />
                         </div>
-
-                        {/* Quick tips */}
-                        <div className="bg-accent/10 border border-accent/20 rounded-xl p-4 text-sm text-accent-foreground text-center">
-                            <p className="font-medium mb-1">Dica de uso</p>
-                            <p className="text-xs opacity-90">
-                                Os dados serão importados da Receita Federal. Após consultar, escolha se a empresa atuará como fornecedor ou transportadora no seu fluxo.
+                        <div>
+                            <h1 className="text-2xl font-bold tracking-tight">Fornecedores e Transportadoras</h1>
+                            <p className="text-sm text-muted-foreground mt-1">
+                                Consulte e adicione novas empresas ao diretório automaticamente a partir do CNPJ.
                             </p>
                         </div>
                     </div>
 
-                    {/* Result or Dashboard Column */}
-                    <div className="md:col-span-2">
-                        {!result ? (
-                            <div className="bg-card rounded-xl border border-border/50 shadow-sm p-6 overflow-hidden flex flex-col h-full">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {/* Search Column */}
+                        <div className="md:col-span-1 space-y-6">
+                            <div className="bg-card rounded-xl border border-border/50 shadow-sm p-6">
                                 <h2 className="text-lg font-semibold flex items-center gap-2 mb-4 text-foreground/80">
-                                    <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
-                                    Empresas em Destaque
+                                    <Search className="h-5 w-5" />
+                                    Consultar CNPJ
                                 </h2>
+                                <form onSubmit={handleSearch} className="space-y-4">
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            placeholder="Digite o CNPJ (apenas números)"
+                                            className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-border bg-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                                            value={cnpj}
+                                            onChange={handleCnpjChange}
+                                            maxLength={18} // Max length for formatted CNPJ
+                                        />
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    </div>
+                                    <button
+                                        type="submit"
+                                        disabled={loading || cnpj.replace(/\D/g, '').length !== 14}
+                                        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:bg-primary/50 disabled:cursor-not-allowed"
+                                    >
+                                        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                                        Consultar CNPJ
+                                    </button>
+                                </form>
+                            </div>
 
-                                {(() => {
-                                    const { companies } = useKanbanStore.getState();
-                                    const favoriteCompanies = companies
-                                        .filter(c => !c.trashed && c.isFavorite)
-                                        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                                        .slice(0, 4);
+                            {/* Quick tips */}
+                            <div className="bg-accent/10 border border-border rounded-xl p-4 text-sm text-foreground text-center">
+                                <p className="font-semibold mb-1 text-primary">Dica de uso</p>
+                                <p className="text-xs text-muted-foreground">
+                                    Os dados serão importados da Receita Federal. Após consultar, escolha se a empresa atuará como fornecedor ou transportadora no seu fluxo.
+                                </p>
+                            </div>
+                        </div>
 
-                                    if (favoriteCompanies.length === 0) {
+                        {/* Result or Dashboard Column */}
+                        <div className="md:col-span-2">
+                            {!result ? (
+                                <div className="bg-card rounded-xl border border-border/50 shadow-sm p-6 overflow-hidden flex flex-col h-full overflow-y-auto custom-scrollbar">
+
+                                    {(() => {
+                                        const favoriteSuppliers = companies.filter(c => !c.trashed && c.isFavorite && c.type === 'Fornecedor' && (filterArea ? c.areasAtuacao?.includes(filterArea) : true));
+                                        const favoriteTransporters = companies.filter(c => !c.trashed && c.isFavorite && c.type === 'Transportadora' && (filterRegiao ? c.uf === filterRegiao : true));
+
+                                        const availableStates = Array.from(new Set(companies.map(c => c.uf).filter(Boolean))).sort();
+                                        const availableAreas = Array.from(new Set(companies.filter(c => c.type === 'Fornecedor').flatMap(c => c.areasAtuacao || []))).sort();
+
                                         return (
-                                            <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-muted/20 border-2 border-dashed border-border/50 rounded-xl">
-                                                <Building2 className="h-10 w-10 text-muted-foreground/30 mb-3" />
-                                                <p className="text-muted-foreground font-medium">Nenhuma empresa favoritada.</p>
-                                                <p className="text-xs text-muted-foreground mt-1 max-w-[250px]">
-                                                    Use a busca de CNPJ e salve empresas para criar seu diretório de fornecedores e transportadoras.
-                                                </p>
-                                            </div>
-                                        );
-                                    }
-
-                                    return (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                            {favoriteCompanies.map(company => (
-                                                <div key={company.id} className="group p-4 bg-muted/30 border border-border/50 rounded-xl hover:bg-accent/50 hover:border-border transition-all flex flex-col relative overflow-hidden">
-                                                    <div className="flex items-start justify-between mb-3">
-                                                        <div className="flex items-center gap-2">
-                                                            {company.type === 'Fornecedor' ? (
-                                                                <div className="p-1.5 bg-blue-500/10 text-blue-500 rounded-md">
-                                                                    <Building2 className="h-4 w-4" />
-                                                                </div>
-                                                            ) : (
-                                                                <div className="p-1.5 bg-emerald-500/10 text-emerald-500 rounded-md">
-                                                                    <Truck className="h-4 w-4" />
-                                                                </div>
-                                                            )}
-                                                            <div>
-                                                                <p className="text-xs font-semibold text-foreground truncate max-w-[140px]">{company.nome_fantasia || company.razao_social}</p>
-                                                                <p className="text-[10px] text-muted-foreground">{company.cnpj}</p>
-                                                            </div>
-                                                        </div>
-                                                        <Heart className="h-4 w-4 fill-red-500 text-red-500 shrink-0" />
+                                            <div className="space-y-8">
+                                                {/* Fornecedores em Destaque */}
+                                                <div>
+                                                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+                                                        <h2 className="text-lg font-semibold flex items-center gap-2 text-foreground/80">
+                                                            <Briefcase className="h-5 w-5 text-blue-500" />
+                                                            Fornecedores em Destaque
+                                                        </h2>
+                                                        <select
+                                                            value={filterArea}
+                                                            onChange={(e) => setFilterArea(e.target.value)}
+                                                            className="text-xs bg-muted border border-border rounded-lg px-2 py-1.5 outline-none focus:ring-1 focus:ring-primary w-full sm:w-auto"
+                                                        >
+                                                            <option value="">Todas as Áreas</option>
+                                                            {availableAreas.map(area => (
+                                                                <option key={area} value={area}>{area}</option>
+                                                            ))}
+                                                        </select>
                                                     </div>
 
-                                                    <div className="mt-auto pt-3 border-t border-border/50 flex items-center justify-between">
-                                                        <div className="flex text-yellow-500">
-                                                            {[1, 2, 3, 4, 5].map((star) => (
-                                                                <Star key={star} className={`h-3 w-3 ${star <= (company.rating || 0) ? 'fill-current' : 'text-muted-foreground/20'}`} />
+                                                    {favoriteSuppliers.length === 0 ? (
+                                                        <p className="text-xs text-muted-foreground italic bg-muted/20 p-4 border border-dashed rounded-xl text-center">Nenhum fornecedor favoritado ou encontrado neste filtro.</p>
+                                                    ) : (
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                            {favoriteSuppliers.map(company => (
+                                                                <Link to={`/suppliers-list?id=${company.id}`} key={company.id} className="group p-4 bg-muted/30 border border-border/50 rounded-xl hover:bg-accent/50 hover:border-border transition-all flex flex-col relative overflow-hidden">
+                                                                    <div className="flex items-start justify-between mb-3">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <div className="p-1.5 bg-blue-500/10 text-blue-500 rounded-md">
+                                                                                <Building2 className="h-4 w-4" />
+                                                                            </div>
+                                                                            <div>
+                                                                                <p className="text-xs font-semibold text-foreground truncate max-w-[140px]">{company.nome_fantasia || company.razao_social}</p>
+                                                                                <p className="text-[10px] text-muted-foreground">{company.cnpj}</p>
+                                                                            </div>
+                                                                        </div>
+                                                                        <Heart className="h-4 w-4 fill-red-500 text-red-500 shrink-0" />
+                                                                    </div>
+
+                                                                    <div className="mt-auto pt-3 border-t border-border/50 flex items-center justify-between">
+                                                                        <div className="flex text-yellow-500">
+                                                                            {[1, 2, 3, 4, 5].map((star) => (
+                                                                                <Star key={star} className={`h-3 w-3 ${star <= (company.rating || 0) ? 'fill-current' : 'text-muted-foreground/20'}`} />
+                                                                            ))}
+                                                                        </div>
+                                                                        <span className="text-[10px] bg-background px-2 py-0.5 rounded text-muted-foreground font-medium border border-border/50 truncate max-w-[100px]" title={company.areasAtuacao?.join(', ') || 'Geral'}>
+                                                                            {company.areasAtuacao?.[0] || 'Geral'}
+                                                                        </span>
+                                                                    </div>
+                                                                </Link>
                                                             ))}
                                                         </div>
-                                                        <span className="text-[10px] bg-background px-2 py-0.5 rounded text-muted-foreground font-medium border border-border/50">
-                                                            {company.type}
-                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                {/* Transportadoras em Destaque */}
+                                                <div>
+                                                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+                                                        <h2 className="text-lg font-semibold flex items-center gap-2 text-foreground/80">
+                                                            <Truck className="h-5 w-5 text-emerald-500" />
+                                                            Transportadoras em Destaque
+                                                        </h2>
+                                                        <select
+                                                            value={filterRegiao}
+                                                            onChange={(e) => setFilterRegiao(e.target.value)}
+                                                            className="text-xs bg-muted border border-border rounded-lg px-2 py-1.5 outline-none focus:ring-1 focus:ring-primary w-full sm:w-auto"
+                                                        >
+                                                            <option value="">Todas as Regiões (UF)</option>
+                                                            {availableStates.map(uf => (
+                                                                <option key={uf} value={uf}>{uf === '?' ? 'N/A' : uf}</option>
+                                                            ))}
+                                                        </select>
                                                     </div>
+
+                                                    {favoriteTransporters.length === 0 ? (
+                                                        <p className="text-xs text-muted-foreground italic bg-muted/20 p-4 border border-dashed rounded-xl text-center">Nenhuma transportadora favoritada ou encontrada neste filtro.</p>
+                                                    ) : (
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                            {favoriteTransporters.map(company => (
+                                                                <Link to={`/transporters-list?id=${company.id}`} key={company.id} className="group p-4 bg-muted/30 border border-border/50 rounded-xl hover:bg-accent/50 hover:border-border transition-all flex flex-col relative overflow-hidden">
+                                                                    <div className="flex items-start justify-between mb-3">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <div className="p-1.5 bg-emerald-500/10 text-emerald-500 rounded-md">
+                                                                                <Truck className="h-4 w-4" />
+                                                                            </div>
+                                                                            <div>
+                                                                                <p className="text-xs font-semibold text-foreground truncate max-w-[140px]">{company.nome_fantasia || company.razao_social}</p>
+                                                                                <p className="text-[10px] text-muted-foreground">{company.cnpj}</p>
+                                                                            </div>
+                                                                        </div>
+                                                                        <Heart className="h-4 w-4 fill-red-500 text-red-500 shrink-0" />
+                                                                    </div>
+
+                                                                    <div className="mt-auto pt-3 border-t border-border/50 flex items-center justify-between">
+                                                                        <div className="flex text-yellow-500">
+                                                                            {[1, 2, 3, 4, 5].map((star) => (
+                                                                                <Star key={star} className={`h-3 w-3 ${star <= (company.rating || 0) ? 'fill-current' : 'text-muted-foreground/20'}`} />
+                                                                            ))}
+                                                                        </div>
+                                                                        <span className="text-[10px] bg-background px-2 py-0.5 rounded text-muted-foreground font-medium border border-border/50">
+                                                                            {company.logradouro ? `${company.municipio}/${company.uf}` : 'Sem Endereço'}
+                                                                        </span>
+                                                                    </div>
+                                                                </Link>
+                                                            ))}
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            ))}
-                                        </div>
-                                    )
-                                })()}
-                            </div>
-                        ) : (
-                            <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden h-full flex flex-col">
-                                <div className="p-6 border-b border-border bg-muted/10 flex items-start justify-between">
-                                    <div className="flex items-start gap-4">
-                                        <div className="p-3 bg-primary/10 rounded-xl text-primary mt-1">
-                                            <Building2 className="h-6 w-6" />
-                                        </div>
-                                        <div>
-                                            <h2 className="text-xl font-bold text-foreground">{result.razao_social}</h2>
-                                            {result.nome_fantasia && (
-                                                <p className="text-sm font-medium text-muted-foreground mt-0.5">{result.nome_fantasia}</p>
-                                            )}
-                                            <div className="flex items-center gap-3 mt-3">
-                                                <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${result.descricao_situacao_cadastral === 'ATIVA' ? 'bg-green-500/10 text-green-500' : 'bg-destructive/10 text-destructive'}`}>
-                                                    {result.descricao_situacao_cadastral}
-                                                </span>
-                                                <span className="text-xs text-muted-foreground flex items-center gap-1.5 bg-muted px-2 py-1 rounded-md">
-                                                    <Briefcase className="h-3 w-3" />
-                                                    CNPJ: {result.cnpj}
-                                                </span>
                                             </div>
-                                        </div>
-                                    </div>
-                                    <button onClick={() => setResult(null)} className="p-2 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg transition-colors">
-                                        <ExternalLink className="h-4 w-4 rotate-180" />
-                                    </button>
+                                        );
+                                    })()}
                                 </div>
-
-                                <div className="p-6 flex-1 overflow-auto custom-scrollbar">
-                                    <h3 className="text-sm font-semibold text-muted-foreground mb-4 uppercase tracking-wider">Detalhes da Empresa</h3>
-
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-8">
-                                        <div className="space-y-1">
-                                            <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> Atividade Principal</p>
-                                            <p className="text-sm font-medium text-foreground">{result.cnae_fiscal_descricao}</p>
-                                        </div>
-
-                                        <div className="space-y-2 sm:col-span-2 bg-muted/30 p-4 rounded-xl border border-border/50 text-sm">
-                                            <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-2 flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> Endereço Completo</p>
-                                            <p className="text-foreground">{result.logradouro}, {result.numero} {result.complemento ? `- ${result.complemento}` : ''}</p>
-                                            <p className="text-muted-foreground">{result.bairro} - {result.municipio} / {result.uf}</p>
-                                            <p className="text-muted-foreground mt-1 font-medium">CEP: {result.cep}</p>
-                                        </div>
-
-                                        <div className="space-y-1 mt-2">
-                                            <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider flex items-center gap-1"><Phone className="h-3.5 w-3.5" /> Telefones de Contato</p>
-                                            <div className="flex items-center gap-2">
-                                                <p className="text-sm font-medium text-foreground">{result.ddd_telefone_1}</p>
-                                                {result.ddd_telefone_1 && (
-                                                    <a href={`https://wa.me/55${result.ddd_telefone_1.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="p-1 bg-green-500/10 text-green-600 rounded hover:bg-green-500/20 transition-colors" title="WhatsApp">
-                                                        <Phone className="h-3 w-3" />
-                                                    </a>
-                                                )}
+                            ) : (
+                                <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden h-full flex flex-col">
+                                    <div className="p-6 border-b border-border bg-muted/10 flex items-start justify-between">
+                                        <div className="flex items-start gap-4">
+                                            <div className="p-3 bg-primary/10 rounded-xl text-primary mt-1">
+                                                <Building2 className="h-6 w-6" />
                                             </div>
-                                            {result.ddd_telefone_2 && (
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <p className="text-sm font-medium text-foreground">{result.ddd_telefone_2}</p>
-                                                    <a href={`https://wa.me/55${result.ddd_telefone_2.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="p-1 bg-green-500/10 text-green-600 rounded hover:bg-green-500/20 transition-colors" title="WhatsApp">
-                                                        <Phone className="h-3 w-3" />
-                                                    </a>
+                                            <div>
+                                                <h2 className="text-xl font-bold text-foreground">{result.razao_social}</h2>
+                                                {result.nome_fantasia && (
+                                                    <p className="text-sm font-medium text-muted-foreground mt-0.5">{result.nome_fantasia}</p>
+                                                )}
+                                                <div className="flex items-center gap-3 mt-3">
+                                                    <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${result.descricao_situacao_cadastral === 'ATIVA' ? 'bg-green-500/10 text-green-500' : 'bg-destructive/10 text-destructive'}`}>
+                                                        {result.descricao_situacao_cadastral}
+                                                    </span>
+                                                    <span className="text-xs text-muted-foreground flex items-center gap-1.5 bg-muted px-2 py-1 rounded-md">
+                                                        <Briefcase className="h-3 w-3" />
+                                                        CNPJ: {result.cnpj}
+                                                    </span>
                                                 </div>
-                                            )}
-                                            {!result.ddd_telefone_1 && !result.ddd_telefone_2 && <span className="text-xs text-muted-foreground italic">Não informado</span>}
+                                            </div>
                                         </div>
+                                        <button onClick={() => setResult(null)} className="p-2 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg transition-colors">
+                                            <ExternalLink className="h-4 w-4 rotate-180" />
+                                        </button>
+                                    </div>
 
-                                        <div className="space-y-1 mt-2">
-                                            <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider flex items-center gap-1"><Mail className="h-3.5 w-3.5" /> Endereço de E-mail</p>
-                                            <div className="flex items-center gap-2">
-                                                <p className="text-sm font-medium text-foreground break-all">{result.email || <span className="text-xs text-muted-foreground italic">Não informado</span>}</p>
-                                                {result.email && (
-                                                    <a href={`mailto:${result.email}`} className="p-1 bg-blue-500/10 text-blue-600 rounded hover:bg-blue-500/20 transition-colors shrink-0" title="Enviar E-mail">
-                                                        <Mail className="h-3 w-3" />
-                                                    </a>
+                                    <div className="p-6 flex-1 overflow-auto custom-scrollbar">
+                                        <h3 className="text-sm font-semibold text-muted-foreground mb-4 uppercase tracking-wider">Detalhes da Empresa</h3>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-8">
+                                            <div className="space-y-1">
+                                                <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> Atividade Principal</p>
+                                                <p className="text-sm font-medium text-foreground">{result.cnae_fiscal_descricao}</p>
+                                            </div>
+
+                                            <div className="space-y-2 sm:col-span-2 bg-muted/30 p-4 rounded-xl border border-border/50 text-sm">
+                                                <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-2 flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> Endereço Completo</p>
+                                                <p className="text-foreground">{result.logradouro}, {result.numero} {result.complemento ? `- ${result.complemento}` : ''}</p>
+                                                <p className="text-muted-foreground">{result.bairro} - {result.municipio} / {result.uf}</p>
+                                                <p className="text-muted-foreground mt-1 font-medium">CEP: {result.cep}</p>
+                                            </div>
+
+                                            <div className="space-y-1 mt-2">
+                                                <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider flex items-center gap-1"><Phone className="h-3.5 w-3.5" /> Telefones de Contato</p>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-sm font-medium text-foreground">{result.ddd_telefone_1}</p>
+                                                    {result.ddd_telefone_1 && (
+                                                        <a href={`https://wa.me/55${result.ddd_telefone_1.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="p-1 bg-green-500/10 text-green-600 rounded hover:bg-green-500/20 transition-colors" title="WhatsApp">
+                                                            <Phone className="h-3 w-3" />
+                                                        </a>
+                                                    )}
+                                                </div>
+                                                {result.ddd_telefone_2 && (
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <p className="text-sm font-medium text-foreground">{result.ddd_telefone_2}</p>
+                                                        <a href={`https://wa.me/55${result.ddd_telefone_2.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="p-1 bg-green-500/10 text-green-600 rounded hover:bg-green-500/20 transition-colors" title="WhatsApp">
+                                                            <Phone className="h-3 w-3" />
+                                                        </a>
+                                                    </div>
                                                 )}
+                                                {!result.ddd_telefone_1 && !result.ddd_telefone_2 && <span className="text-xs text-muted-foreground italic">Não informado</span>}
+                                            </div>
+
+                                            <div className="space-y-1 mt-2">
+                                                <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider flex items-center gap-1"><Mail className="h-3.5 w-3.5" /> Endereço de E-mail</p>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-sm font-medium text-foreground break-all">{result.email || <span className="text-xs text-muted-foreground italic">Não informado</span>}</p>
+                                                    {result.email && (
+                                                        <a href={`mailto:${result.email}`} className="p-1 bg-blue-500/10 text-blue-600 rounded hover:bg-blue-500/20 transition-colors shrink-0" title="Enviar E-mail">
+                                                            <Mail className="h-3 w-3" />
+                                                        </a>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
 
-                                {/* Save Button / Action */}
-                                <div className="mt-8 pt-6 border-t border-border flex flex-col sm:flex-row gap-4 items-center justify-between">
-                                    <p className="text-sm text-muted-foreground flex items-center gap-2">
-                                        <Briefcase className="h-4 w-4" />
-                                        Salve este contato para acesso rápido nas suas tarefas e boards.
-                                    </p>
-                                    <div className="flex items-center gap-3">
-                                        <button
-                                            onClick={() => setResult(null)}
-                                            className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
-                                        >
-                                            Limpar Busca
-                                        </button>
-                                        <button
-                                            onClick={() => handleSave('Fornecedor')}
-                                            className="px-6 py-2 bg-primary text-primary-foreground font-semibold rounded-lg shadow-md hover:bg-primary/90 hover:shadow-lg transition-all flex items-center gap-2"
-                                        >
-                                            <Building2 className="h-4 w-4" />
-                                            Salvar Fornecedor
-                                        </button>
-                                        <button
-                                            onClick={() => handleSave('Transportadora')}
-                                            className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2"
-                                        >
-                                            <Truck className="h-4 w-4" />
-                                            Salvar Transportadora
-                                        </button>
+                                    {/* Save Button / Action */}
+                                    <div className="mt-8 pt-6 border-t border-border flex flex-col sm:flex-row gap-4 items-center justify-between">
+                                        <p className="text-sm text-muted-foreground flex items-center gap-2">
+                                            <Briefcase className="h-4 w-4" />
+                                            Salve este contato para acesso rápido nas suas tarefas e boards.
+                                        </p>
+                                        <div className="flex items-center gap-3">
+                                            <button
+                                                onClick={() => setResult(null)}
+                                                className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+                                            >
+                                                Limpar Busca
+                                            </button>
+                                            <button
+                                                onClick={() => handleSave('Fornecedor')}
+                                                className="px-6 py-2 bg-primary text-primary-foreground font-semibold rounded-lg shadow-md hover:bg-primary/90 hover:shadow-lg transition-all flex items-center gap-2"
+                                            >
+                                                <Building2 className="h-4 w-4" />
+                                                Salvar Fornecedor
+                                            </button>
+                                            <button
+                                                onClick={() => handleSave('Transportadora')}
+                                                className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+                                            >
+                                                <Truck className="h-4 w-4" />
+                                                Salvar Transportadora
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
-        </div >
+        </div>
     );
 };
 

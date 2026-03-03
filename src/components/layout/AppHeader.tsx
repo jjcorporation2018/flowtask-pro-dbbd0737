@@ -41,21 +41,24 @@ const AppHeader = () => {
         <span className="font-bold text-sm tracking-tight hidden sm:block">POLARYON</span>
       </Link>
 
-      <nav className="flex items-center gap-1 ml-4 border-l border-white/20 pl-4">
+      <nav className="flex flex-wrap items-center gap-1 sm:gap-2 ml-2 sm:ml-4 border-l border-white/20 pl-2 sm:pl-4">
         <Link
           to="/"
-          className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${location.pathname === '/' ? 'bg-primary/20 text-white' : 'hover:bg-primary/10 text-white/80 hover:text-white'
+          className={`px-2 sm:px-3 py-1.5 rounded text-[10px] sm:text-xs font-medium transition-colors ${location.pathname === '/' ? 'bg-primary/20 text-white' : 'hover:bg-primary/10 text-white/80 hover:text-white'
             }`}
         >
           <LayoutDashboard className="h-3.5 w-3.5 inline mr-1" />
-          <span className="uppercase tracking-wider">Tarefas</span>
+          <span className="uppercase tracking-wider hidden sm:inline">Tarefas</span>
+          <span className="uppercase tracking-wider sm:hidden">Tarefas</span>
         </Link>
         <Link
           to="/suppliers"
-          className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${location.pathname === '/suppliers' ? 'bg-primary/20 text-white' : 'hover:bg-primary/10 text-white/80 hover:text-white'
+          className={`px-2 sm:px-3 py-1.5 rounded text-[10px] sm:text-xs font-medium transition-colors ${location.pathname === '/suppliers' || location.pathname.startsWith('/suppliers-list') || location.pathname.startsWith('/transporters-list') ? 'bg-primary/20 text-white' : 'hover:bg-primary/10 text-white/80 hover:text-white'
             }`}
         >
-          <span className="uppercase tracking-wider">Fornecedores e Transportadoras</span>
+          <Briefcase className="h-3.5 w-3.5 inline mr-1" />
+          <span className="uppercase tracking-wider hidden sm:inline">Fornecedores e Transportadoras</span>
+          <span className="uppercase tracking-wider sm:hidden">Empresas</span>
         </Link>
       </nav>
 
