@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Target, Search, Calendar, MapPin, Building2, ExternalLink, Filter, Loader2, AlertCircle, ChevronRight, FileText, X, DollarSign, Briefcase, KanbanSquare } from 'lucide-react';
+import { Target, Search, Calendar, MapPin, Building2, ExternalLink, Filter, Loader2, AlertCircle, ChevronRight, FileText, X, DollarSign, Briefcase, KanbanSquare, Download, Clock } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle, DialogClose, DialogHeader } from '@/components/ui/dialog';
 import { useKanbanStore } from '@/store/kanban-store';
 import { toast } from 'sonner';
@@ -21,14 +21,19 @@ interface PncpItem {
     data_fim_vigencia?: string;
     data_assinatura?: string;
     valor_global?: number;
+    valorTotalEstimado?: number;
     modalidade_licitacao_nome: string;
     data_publicacao_pncp?: string;
     data_atualizacao_pncp?: string;
+    data_inicio_proposta?: string; // Gov endpoint uses this for Propostas
+    data_encerramento_proposta?: string;
+    situacao_compra_nome: string;
     unidade_nome?: string;
     unidade_codigo?: string;
     amparo_legal_nome?: string;
     srp?: boolean;
     tipo_instrumento_convocacao_nome?: string;
+    numero_controle_pncp?: string;
 }
 
 const ESTADOS_BR = ["AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"];
@@ -42,6 +47,59 @@ const ESTADOS_MAP: Record<string, string> = {
     'RO': 'Rondônia', 'RR': 'Roraima', 'SC': 'Santa Catarina', 'SP': 'São Paulo',
     'SE': 'Sergipe', 'TO': 'Tocantins'
 };
+
+const ProposalDates = memo(({ item }: { item: PncpItem }) => {
+    const [dates, setDates] = useState<{ inicio?: string; fim?: string; loading: boolean }>({ loading: true });
+
+    useEffect(() => {
+        let isMounted = true;
+        const fetchDates = async () => {
+            const ano = (item as any).ano_compra || (item as any).ano;
+            const seq = (item as any).numero_compra || (item as any).numero_sequencial;
+            if (!item.orgao_cnpj || !ano || !seq) {
+                if (isMounted) setDates({ loading: false });
+                return;
+            }
+            try {
+                // To bypass Gov.br CORS, we use our custom Vite Middleware proxy server-side
+                const res = await fetch(`/api/pncp/datas/${item.orgao_cnpj}/${ano}/${seq}`);
+                if (!res.ok) throw new Error();
+                const detail = await res.json();
+                if (isMounted) {
+                    setDates({
+                        inicio: detail.dataRecebimentoProposta || detail.dataAberturaProposta || detail.dataHoraRegistroOcorrencia,
+                        fim: detail.dataFimRecebimentoProposta || detail.dataEncerramentoProposta,
+                        loading: false
+                    });
+                }
+            } catch (e) {
+                if (isMounted) setDates({ loading: false });
+            }
+        };
+        fetchDates();
+        return () => { isMounted = false; };
+    }, [item.orgao_cnpj, item.numero_controle_pncp]);
+
+    if (dates.loading) {
+        return (
+            <>
+                <td className="px-4 py-3.5 align-top text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin opacity-50 block mx-auto" /></td>
+                <td className="px-4 py-3.5 align-top text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin opacity-50 block mx-auto" /></td>
+            </>
+        );
+    }
+
+    return (
+        <>
+            <td className="px-4 py-3.5 align-top text-muted-foreground font-medium text-[11px]">
+                {dates.inicio ? new Date(dates.inicio).toLocaleDateString('pt-BR') : '-'}
+            </td>
+            <td className="px-4 py-3.5 align-top text-[11px] font-medium text-destructive">
+                {dates.fim ? new Date(dates.fim).toLocaleDateString('pt-BR') : '-'}
+            </td>
+        </>
+    );
+});
 
 export default function OportunidadesSearch() {
     const [keyword, setKeyword] = useState('');
@@ -58,8 +116,26 @@ export default function OportunidadesSearch() {
     const [conteudoNacionalFilter, setConteudoNacionalFilter] = useState('');
     const [margemPreferenciaFilter, setMargemPreferenciaFilter] = useState('');
     const [unidadeFilter, setUnidadeFilter] = useState('');
+    const [dataInicialFilter, setDataInicialFilter] = useState('');
+    const [dataFinalFilter, setDataFinalFilter] = useState('');
 
     const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+
+    const handleClearFilters = () => {
+        setKeyword('');
+        setUfFilter('');
+        setOrgaoFilter('');
+        setInstrumentoFilter('');
+        setEsferaFilter('');
+        setPoderFilter('');
+        setConteudoNacionalFilter('');
+        setMargemPreferenciaFilter('');
+        setUnidadeFilter('');
+        setStatusFilter('1');
+        setDataInicialFilter('');
+        setDataFinalFilter('');
+        setPage(1);
+    };
 
     const [page, setPage] = useState(1);
     const [pageInput, setPageInput] = useState('1'); // Para digitação manual no Pagination footer
@@ -70,6 +146,7 @@ export default function OportunidadesSearch() {
 
     const [selectedItem, setSelectedItem] = useState<PncpItem | null>(null);
     const [selectedItemFiles, setSelectedItemFiles] = useState<any[]>([]);
+    const [selectedFilesToExport, setSelectedFilesToExport] = useState<any[]>([]);
     const [loadingFiles, setLoadingFiles] = useState(false);
 
     const getOfficialLink = (item: PncpItem) => {
@@ -96,6 +173,7 @@ export default function OportunidadesSearch() {
                 if (res.ok) {
                     const data = await res.json();
                     setSelectedItemFiles(data);
+                    setSelectedFilesToExport(data); // Vêm todos pré-selecionados para export
                 }
             } catch (e) {
                 console.error("Failed to fetch files", e);
@@ -137,7 +215,7 @@ export default function OportunidadesSearch() {
 **Instrumento:** ${selectedItem.tipo_instrumento_convocacao_nome || '-'}
 **SRP (Registro de Preços):** ${selectedItem.srp ? 'Sim' : 'Não'}
 **Amparo Legal:** ${selectedItem.amparo_legal_nome || 'N/A'}
-**Valor Estimado:** ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedItem.valor_global || 0)}
+**Valor Estimado:** ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedItem.valorTotalEstimado || selectedItem.valor_global || 0)}
 **Datas do Edital:** Publicação PNCP (${selectedItem.data_publicacao_pncp ? new Date(selectedItem.data_publicacao_pncp).toLocaleDateString('pt-BR') : '-'}) • **Atualização:** ${selectedItem.data_atualizacao_pncp ? new Date(selectedItem.data_atualizacao_pncp).toLocaleDateString('pt-BR') : '-'}
 **Encerramento de Propostas:** ${selectedItem.data_fim_vigencia ? new Date(selectedItem.data_fim_vigencia).toLocaleDateString('pt-BR') : '-'}
 
@@ -165,14 +243,37 @@ ${selectedItemFiles.length > 0 ? selectedItemFiles.map(f => `- [${f.titulo} (${f
             trashed: false,
         };
 
+        // Inject Attachments (Selected Files + Link to PNCP)
+        const cardAttachments: any[] = [];
+
+        cardAttachments.push({
+            id: crypto.randomUUID(),
+            name: "Acesso Oficial PNCP - " + selectedItem.title,
+            url: getOfficialLink(selectedItem),
+            type: "url",
+            addedAt: new Date().toISOString()
+        });
+
+        for (const file of selectedFilesToExport) {
+            cardAttachments.push({
+                id: crypto.randomUUID(),
+                name: file.titulo || file.tipoDocumentoNome,
+                url: file.url,
+                type: "pdf", // Fallback type
+                addedAt: new Date().toISOString()
+            });
+        }
+
         // Inject Card
         useKanbanStore.getState().cards.push({
             id: crypto.randomUUID(),
             createdAt: new Date().toISOString(),
             comments: [],
-            attachments: [],
+            attachments: cardAttachments,
             checklist: [],
             timeEntries: [],
+            customLink: getOfficialLink(selectedItem),
+            pncpId: selectedItem.numero_controle_pncp || selectedItem.orgao_cnpj,
             ...cardParams
         });
 
@@ -209,6 +310,10 @@ ${selectedItemFiles.length > 0 ? selectedItemFiles.map(f => `- [${f.titulo} (${f
                 url += `&tipos_documento=${instrumentoFilter || fallbackDocumentos}`;
 
                 if (esferaFilter) url += `&esfera=${esferaFilter}`;
+                if (dataInicialFilter) url += `&dataInicial=${dataInicialFilter.replace(/-/g, '')}`;
+                if (dataFinalFilter) url += `&dataFinal=${dataFinalFilter.replace(/-/g, '')}`;
+
+                // Force sorting on API (though Client side handles the rest)
                 if (ordenacaoFilter) url += `&ordenacao=${ordenacaoFilter}`;
                 return url;
             };
@@ -350,6 +455,15 @@ ${selectedItemFiles.length > 0 ? selectedItemFiles.map(f => `- [${f.titulo} (${f
                                 Filtros Avançados
                             </button>
                             <button
+                                type="button"
+                                onClick={handleClearFilters}
+                                className="h-10 px-4 text-sm font-medium rounded-md border border-border bg-background hover:bg-destructive/10 hover:text-destructive transition-colors flex items-center gap-2 shadow-sm whitespace-nowrap"
+                                title="Restaurar filtro padrão de lote inicial"
+                            >
+                                <X className="h-4 w-4" />
+                                Limpar Filtros
+                            </button>
+                            <button
                                 type="submit"
                                 disabled={loading}
                                 className="h-10 px-6 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 transition-colors flex items-center gap-2 shadow-sm whitespace-nowrap"
@@ -459,6 +573,14 @@ ${selectedItemFiles.length > 0 ? selectedItemFiles.map(f => `- [${f.titulo} (${f
                                         <option value="ME">Exclusiva ME/EPP</option>
                                     </select>
                                 </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-semibold text-muted-foreground uppercase">Período (Início)</label>
+                                    <input type="date" value={dataInicialFilter} onChange={(e) => setDataInicialFilter(e.target.value)} className="w-full h-8 bg-background border border-border rounded px-2 text-xs focus:ring-1 focus:ring-primary" />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-semibold text-muted-foreground uppercase">Período (Fim)</label>
+                                    <input type="date" value={dataFinalFilter} onChange={(e) => setDataFinalFilter(e.target.value)} className="w-full h-8 bg-background border border-border rounded px-2 text-xs focus:ring-1 focus:ring-primary" />
+                                </div>
                             </motion.div>
                         )}
                     </form>
@@ -492,6 +614,8 @@ ${selectedItemFiles.length > 0 ? selectedItemFiles.map(f => `- [${f.titulo} (${f
                                 <tr>
                                     <th className="px-4 py-3 font-medium w-32">Status</th>
                                     <th className="px-4 py-3 font-medium w-40">Publicação</th>
+                                    <th className="px-4 py-3 font-medium w-32">Início Recepção</th>
+                                    <th className="px-4 py-3 font-medium w-32">Fim Recepção</th>
                                     <th className="px-4 py-3 font-medium">Órgão / Descrição Sintética</th>
                                     <th className="px-4 py-3 font-medium w-32">Modalidade</th>
                                     <th className="px-4 py-3 font-medium w-24">UF</th>
@@ -513,6 +637,7 @@ ${selectedItemFiles.length > 0 ? selectedItemFiles.map(f => `- [${f.titulo} (${f
                                         <td className="px-4 py-3.5 align-top text-muted-foreground">
                                             {formatDate(item.data_publicacao_pncp)}
                                         </td>
+                                        <ProposalDates item={item} />
                                         <td className="px-4 py-2.5 whitespace-normal">
                                             <div className="flex flex-col gap-1 max-w-[500px]">
                                                 <span className="font-semibold text-foreground text-xs leading-tight tracking-tight uppercase">
@@ -721,7 +846,17 @@ ${selectedItemFiles.length > 0 ? selectedItemFiles.map(f => `- [${f.titulo} (${f
                                                 {selectedItemFiles.map((file, idx) => (
                                                     <li key={idx} className="p-3 hover:bg-muted/20 flex items-center justify-between gap-4">
                                                         <div className="flex items-center gap-3 overflow-hidden">
-                                                            <FileText className="h-5 w-5 text-primary shrink-0" />
+                                                            <input
+                                                                type="checkbox"
+                                                                title="Exportar para o Kunbun"
+                                                                checked={selectedFilesToExport.some(f => f.url === file.url)}
+                                                                onChange={(e) => {
+                                                                    if (e.target.checked) setSelectedFilesToExport(prev => [...prev, file]);
+                                                                    else setSelectedFilesToExport(prev => prev.filter(f => f.url !== file.url));
+                                                                }}
+                                                                className="rounded border-border text-primary focus:ring-primary h-4 w-4 shrink-0 transition-all cursor-pointer"
+                                                            />
+                                                            <FileText className="h-5 w-5 text-primary shrink-0 opacity-80" />
                                                             <div className="truncate">
                                                                 <span className="block text-sm font-semibold truncate" title={file.titulo}>{file.titulo}</span>
                                                                 <span className="block text-[11px] text-muted-foreground uppercase">{file.tipoDocumentoNome}</span>

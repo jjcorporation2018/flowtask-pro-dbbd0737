@@ -331,6 +331,8 @@ export interface Card {
   attachments: Attachment[];
   timeEntries: TimeEntry[];
   estimatedTime?: number; // minutes
+  customLink?: string; // Editável para links externos como PNCP
+  pncpId?: string; // Para o botão interno de Acessar Oportunidade
   createdAt: string;
 }
 

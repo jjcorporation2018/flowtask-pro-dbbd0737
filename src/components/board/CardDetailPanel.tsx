@@ -48,7 +48,7 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
     addChecklistItem, toggleChecklistItem, deleteChecklistItem,
     addComment, startTimer, stopTimer, resetTimer,
     addLabel, updateLabel, deleteLabel,
-    globalSectionOrder, setGlobalSectionOrder, setUndoAction,
+    setUndoAction,
     recentMilestoneTitles, addRecentMilestoneTitle, budgets, companies
   } = useKanbanStore();
   const card = cards.find(c => c.id === cardId);
@@ -64,8 +64,11 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
     return c ? (c.nome_fantasia || c.razao_social) : 'Empresa Indisponível';
   };
 
+  const [sectionOrder, setSectionOrder] = useState<string[]>(DEFAULT_SECTIONS);
   const [title, setTitle] = useState(card?.title || '');
   const [summary, setSummary] = useState(card?.summary || '');
+  const [customLink, setCustomLink] = useState(card?.customLink || '');
+  const handleSaveCustomLink = () => { if (canEdit) updateCard(cardId, { customLink: customLink.trim() || undefined }); };
   const [description, setDescription] = useState(card?.description || '');
   const [newCheckItem, setNewCheckItem] = useState('');
   const [newComment, setNewComment] = useState('');
@@ -750,9 +753,40 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
                 </div>
               )}
 
+              {/* Custom Link & PNCP Integration - Only for PNCP Exported Cards */}
+              {card.pncpId && (
+                <div className="flex flex-wrap items-center gap-3 bg-secondary/30 p-3 rounded-lg border border-border">
+                  <div className="flex-1 flex items-center gap-2 min-w-[200px]">
+                    <Link2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <input
+                      value={customLink}
+                      onChange={e => setCustomLink(e.target.value)}
+                      onBlur={handleSaveCustomLink}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleSaveCustomLink();
+                        }
+                      }}
+                      disabled={!canEdit}
+                      placeholder="Adicionar link externo (ex: Edital PNCP)..."
+                      className="w-full bg-transparent text-xs outline-none border-b border-transparent focus:border-primary disabled:opacity-80 disabled:cursor-not-allowed"
+                    />
+                    {customLink && (
+                      <a href={customLink.startsWith('http') ? customLink : `https://${customLink}`} target="_blank" rel="noopener noreferrer" className="p-1 rounded hover:bg-primary/20 bg-primary/10 text-primary transition-colors shrink-0" title="Abrir Link Externo">
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
+                  </div>
+                  <button onClick={() => { onClose(); navigate('/oportunidades/busca'); }} className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors shrink-0 shadow-sm" title="Abrir painel de busca do PNCP">
+                    <Building2 className="h-3.5 w-3.5" /> Acessar Oportunidade no Sistema
+                  </button>
+                </div>
+              )}
+
               {/* Modular sections - reorderable */}
-              <Reorder.Group axis="y" values={globalSectionOrder.filter(s => s !== 'comments' && s !== 'budgets')} onReorder={(newOrder) => setGlobalSectionOrder(newOrder)} className="space-y-5">
-                {globalSectionOrder.filter(s => s !== 'comments' && s !== 'budgets').map(section => (
+              <Reorder.Group axis="y" values={sectionOrder.filter(s => s !== 'comments' && s !== 'budgets')} onReorder={setSectionOrder} className="space-y-5">
+                {sectionOrder.filter(s => s !== 'comments' && s !== 'budgets').map(section => (
                   <Reorder.Item key={section} value={section} className="relative group">
                     <div className="absolute -left-5 top-1 opacity-0 group-hover:opacity-50 cursor-grab">
                       <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
