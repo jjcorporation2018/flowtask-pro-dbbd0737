@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Target, Search, Calendar, MapPin, Building2, ExternalLink, Filter, Loader2, AlertCircle, ChevronRight, FileText, X, DollarSign, Briefcase } from 'lucide-react';
+import { Target, Search, Calendar, MapPin, Building2, ExternalLink, Filter, Loader2, AlertCircle, ChevronRight, FileText, X, DollarSign, Briefcase, KanbanSquare } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle, DialogClose, DialogHeader } from '@/components/ui/dialog';
+import { useKanbanStore } from '@/store/kanban-store';
+import { toast } from 'sonner';
 
 interface PncpItem {
     id: string;
@@ -21,9 +23,25 @@ interface PncpItem {
     valor_global?: number;
     modalidade_licitacao_nome: string;
     data_publicacao_pncp?: string;
+    data_atualizacao_pncp?: string;
+    unidade_nome?: string;
+    unidade_codigo?: string;
+    amparo_legal_nome?: string;
+    srp?: boolean;
+    tipo_instrumento_convocacao_nome?: string;
 }
 
 const ESTADOS_BR = ["AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"];
+
+const ESTADOS_MAP: Record<string, string> = {
+    'AC': 'Acre', 'AL': 'Alagoas', 'AP': 'Amapá', 'AM': 'Amazonas', 'BA': 'Bahia',
+    'CE': 'Ceará', 'DF': 'Distrito Federal', 'ES': 'Espírito Santo', 'GO': 'Goiás',
+    'MA': 'Maranhão', 'MT': 'Mato Grosso', 'MS': 'Mato Grosso do Sul', 'MG': 'Minas Gerais',
+    'PA': 'Pará', 'PB': 'Paraíba', 'PR': 'Paraná', 'PE': 'Pernambuco', 'PI': 'Piauí',
+    'RJ': 'Rio de Janeiro', 'RN': 'Rio Grande do Norte', 'RS': 'Rio Grande do Sul',
+    'RO': 'Rondônia', 'RR': 'Roraima', 'SC': 'Santa Catarina', 'SP': 'São Paulo',
+    'SE': 'Sergipe', 'TO': 'Tocantins'
+};
 
 export default function OportunidadesSearch() {
     const [keyword, setKeyword] = useState('');
@@ -51,6 +69,116 @@ export default function OportunidadesSearch() {
     const [totalResults, setTotalResults] = useState(0);
 
     const [selectedItem, setSelectedItem] = useState<PncpItem | null>(null);
+    const [selectedItemFiles, setSelectedItemFiles] = useState<any[]>([]);
+    const [loadingFiles, setLoadingFiles] = useState(false);
+
+    const getOfficialLink = (item: PncpItem) => {
+        if (!item?.item_url) return '#';
+        if (item.item_url.startsWith('http')) return item.item_url;
+        return `https://pncp.gov.br${item.item_url.replace('/compras/', '/app/editais/')}`;
+    };
+
+    useEffect(() => {
+        if (!selectedItem) {
+            setSelectedItemFiles([]);
+            return;
+        }
+        const fetchFiles = async () => {
+            setLoadingFiles(true);
+            try {
+                const ano = (selectedItem as any).ano_compra || (selectedItem as any).ano;
+                const seq = (selectedItem as any).numero_compra || (selectedItem as any).numero_sequencial;
+                if (!selectedItem.orgao_cnpj || !ano || !seq) {
+                    setSelectedItemFiles([]);
+                    return;
+                }
+                const res = await fetch(`https://pncp.gov.br/api/pncp/v1/orgaos/${selectedItem.orgao_cnpj}/compras/${ano}/${seq}/arquivos`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setSelectedItemFiles(data);
+                }
+            } catch (e) {
+                console.error("Failed to fetch files", e);
+            } finally {
+                setLoadingFiles(false);
+            }
+        };
+        fetchFiles();
+    }, [selectedItem]);
+
+    // --- Kunbun Export States ---
+    const folders = useKanbanStore(state => state?.folders) || [];
+    const boards = useKanbanStore(state => state?.boards) || [];
+    const lists = useKanbanStore(state => state?.lists) || [];
+    const currentUser = useKanbanStore(state => state?.members?.[0] || null);
+    const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+    const [exportFolderId, setExportFolderId] = useState('');
+    const [exportBoardId, setExportBoardId] = useState('');
+    const [exportListId, setExportListId] = useState('');
+
+    const handleExportToKunbun = () => {
+        if (!exportListId || !selectedItem) {
+            toast.error("Por favor, selecione uma pasta, quadro e lista de destino.");
+            return;
+        }
+
+        const board = boards.find(b => b.id === exportBoardId);
+        if (!board) return;
+
+        // Formatação Rica do Markdown
+        const descriptionMD = `
+**[GOV.BR] Oportunidade PNCP mapeada pelo Polaryon**
+---
+**Órgão Licitante:** ${selectedItem.orgao_nome}
+**CNPJ:** ${selectedItem.orgao_cnpj}
+**Unidade Compradora:** ${selectedItem.unidade_nome || 'N/A'} (Cód: ${selectedItem.unidade_codigo || '-'})
+**Localidade:** ${selectedItem.municipio_nome} - ${selectedItem.uf}
+**Modalidade:** ${selectedItem.modalidade_licitacao_nome}
+**Instrumento:** ${selectedItem.tipo_instrumento_convocacao_nome || '-'}
+**SRP (Registro de Preços):** ${selectedItem.srp ? 'Sim' : 'Não'}
+**Amparo Legal:** ${selectedItem.amparo_legal_nome || 'N/A'}
+**Valor Estimado:** ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedItem.valor_global || 0)}
+**Datas do Edital:** Publicação PNCP (${selectedItem.data_publicacao_pncp ? new Date(selectedItem.data_publicacao_pncp).toLocaleDateString('pt-BR') : '-'}) • **Atualização:** ${selectedItem.data_atualizacao_pncp ? new Date(selectedItem.data_atualizacao_pncp).toLocaleDateString('pt-BR') : '-'}
+**Encerramento de Propostas:** ${selectedItem.data_fim_vigencia ? new Date(selectedItem.data_fim_vigencia).toLocaleDateString('pt-BR') : '-'}
+
+### Objeto:
+${selectedItem.description || selectedItem.title}
+
+### Arquivos Anexos:
+${selectedItemFiles.length > 0 ? selectedItemFiles.map(f => `- [${f.titulo} (${f.tipoDocumentoNome})](${f.url})`).join('\n') : '*Nenhum arquivo capturado automaticamente.*'}
+
+[🔗 Acessar Edital Oficial Completo no PNCP](${getOfficialLink(selectedItem)})
+        `.trim();
+
+        const cardParams = {
+            title: selectedItem.title,
+            summary: "Oportunidade importada do GovBr",
+            description: descriptionMD,
+            listId: exportListId,
+            position: 0,
+            labels: [],
+            assignees: [],
+            priority: 'medium' as const,
+            status: 'todo' as const,
+            completed: false,
+            archived: false,
+            trashed: false,
+        };
+
+        // Inject Card
+        useKanbanStore.getState().cards.push({
+            id: crypto.randomUUID(),
+            createdAt: new Date().toISOString(),
+            comments: [],
+            attachments: [],
+            checklist: [],
+            timeEntries: [],
+            ...cardParams
+        });
+
+        toast.success("Oportunidade exportada! Cartão criado no Kunbun.");
+        setIsExportDialogOpen(false);
+    };
 
     const fetchOportunidades = async (currentPage = 1) => {
         setLoading(true);
@@ -63,23 +191,40 @@ export default function OportunidadesSearch() {
 
             const makeUrl = (p: number) => {
                 let url = `https://pncp.gov.br/api/search/?tamanho_pagina=50&pagina=${p}`;
-                if (keyword.trim()) url += `&q=${encodeURIComponent(keyword)}`;
+
+                // Smart Keyword Injection: Append State Name & Modalidade to query to force API to return target items
+                let searchQuery = keyword.trim();
+                const ufName = ufFilter ? (ESTADOS_MAP[ufFilter] || ufFilter) : '';
+
+                if (ufName) searchQuery = searchQuery ? `${searchQuery} ${ufName}` : ufName;
+                if (modalidadeFilter) searchQuery = searchQuery ? `${searchQuery} ${modalidadeFilter}` : modalidadeFilter;
+
+                if (searchQuery) url += `&q=${encodeURIComponent(searchQuery)}`;
+
                 // PNCP fails if status is empty. If 'Todos' was selected, fetch all standard ones
                 url += `&status=${statusFilter || '1,2,3,4'}`;
-                if (instrumentoFilter) url += `&tipos_documento=${instrumentoFilter}`;
+
+                // NEW PNCP RULE: tipos_documento is now REQUIRED by the Federal API. Cannot be empty.
+                const fallbackDocumentos = 'edital,aviso_contratacao_direta,ata,contrato';
+                url += `&tipos_documento=${instrumentoFilter || fallbackDocumentos}`;
+
+                if (esferaFilter) url += `&esfera=${esferaFilter}`;
                 if (ordenacaoFilter) url += `&ordenacao=${ordenacaoFilter}`;
                 return url;
             };
 
             const [res1, res2] = await Promise.all([
-                fetch(makeUrl(pncpPage1)),
-                fetch(makeUrl(pncpPage2))
+                fetch(makeUrl(pncpPage1)).catch(() => ({ ok: false, json: async () => ({ items: [] }) } as any)),
+                fetch(makeUrl(pncpPage2)).catch(() => ({ ok: false, json: async () => ({ items: [] }) } as any))
             ]);
 
-            if (!res1.ok || !res2.ok) throw new Error('Falha ao conectar na base de dados nacional.');
+            if (!res1.ok && !res2.ok) throw new Error('Falha ao conectar na base de dados nacional.');
 
-            const data1 = await res1.json();
-            const data2 = await res2.json();
+            let data1 = { items: [], total: 0 };
+            let data2 = { items: [] };
+
+            try { if (res1.ok) data1 = await res1.json(); } catch (e) { console.warn("Parse Error Page 1"); }
+            try { if (res2.ok) data2 = await res2.json(); } catch (e) { console.warn("Parse Error Page 2"); }
 
             let items = [...(data1?.items || []), ...(data2?.items || [])];
 
@@ -87,22 +232,29 @@ export default function OportunidadesSearch() {
             // A API PNCP /search/ não suporta todos os filtros avançados na URL macro (ex: Fonte Orçamentária, Conteúdo Nacional, Esfera)
             // Filtraremos em memória (local runtime) os itens retornados no lote de 100 para simular o "Siga Pregão".
 
-            if (ufFilter) items = items.filter((i: PncpItem) => i.uf === ufFilter);
-            if (esferaFilter) items = items.filter((i: any) => i.esfera_id === esferaFilter);
-            if (orgaoFilter) items = items.filter((i: PncpItem) => (i.orgao_nome?.toLowerCase() ?? '').includes(orgaoFilter.toLowerCase()) || (i.orgao_cnpj ?? '').includes(orgaoFilter));
-            if (modalidadeFilter) items = items.filter((i: PncpItem) => (i.modalidade_licitacao_nome?.toLowerCase() ?? '').includes(modalidadeFilter.toLowerCase()));
-            if (municipioFilter) items = items.filter((i: PncpItem) => (i.municipio_nome?.toLowerCase() ?? '').includes(municipioFilter.toLowerCase()));
-            if (poderFilter) items = items.filter((i: PncpItem) => (i.poder_nome?.toLowerCase() ?? '') === poderFilter.toLowerCase());
+            if (ufFilter) items = items.filter((i: PncpItem) => i?.uf === ufFilter);
+            if (esferaFilter) items = items.filter((i: any) => i?.esfera_id === esferaFilter);
+            if (orgaoFilter) items = items.filter((i: PncpItem) => (i?.orgao_nome?.toLowerCase() || '').includes(orgaoFilter.toLowerCase()) || (i?.orgao_cnpj || '').includes(orgaoFilter));
+            if (modalidadeFilter) items = items.filter((i: PncpItem) => (i?.modalidade_licitacao_nome?.toLowerCase() || '').includes(modalidadeFilter.toLowerCase()));
+            if (municipioFilter) items = items.filter((i: PncpItem) => (i?.municipio_nome?.toLowerCase() || '').includes(municipioFilter.toLowerCase()));
+            if (poderFilter) items = items.filter((i: PncpItem) => (i?.poder_nome?.toLowerCase() || '') === poderFilter.toLowerCase());
 
             // Itens extras pedidos (Fonte, Conteúdo Nac., Unidade, Margem) mapeados a partir do payload Real do Gov:
-            if (unidadeFilter) items = items.filter((i: any) => (i.unidade_nome?.toLowerCase() ?? '').includes(unidadeFilter.toLowerCase()) || (i.unidade_codigo ?? '').includes(unidadeFilter));
-            if (fonteOrcamentoFilter) items = items.filter((i: any) => (i.fonte_orcamentaria?.toLowerCase() ?? '').includes(fonteOrcamentoFilter.toLowerCase()));
+            if (unidadeFilter) items = items.filter((i: any) => (i?.unidade_nome?.toLowerCase() || '').includes(unidadeFilter.toLowerCase()) || (i?.unidade_codigo || '').includes(unidadeFilter));
+            if (fonteOrcamentoFilter) items = items.filter((i: any) => (i?.fonte_orcamentaria?.toLowerCase() || '').includes(fonteOrcamentoFilter.toLowerCase()));
             if (conteudoNacionalFilter) items = items.filter((i: any) => {
-                if (conteudoNacionalFilter === 'Sim') return i.exigencia_conteudo_nacional === true;
-                if (conteudoNacionalFilter === 'Não') return !i.exigencia_conteudo_nacional;
+                if (conteudoNacionalFilter === 'Sim') return i?.exigencia_conteudo_nacional === true;
+                if (conteudoNacionalFilter === 'Não') return i?.exigencia_conteudo_nacional === false;
                 return true;
             });
-            if (margemPreferenciaFilter) items = items.filter((i: any) => (i.tipo_margem_preferencia_nome?.toLowerCase() ?? '').includes(margemPreferenciaFilter.toLowerCase()));
+            if (margemPreferenciaFilter) items = items.filter((i: any) => (i?.tipo_margem_preferencia_nome?.toLowerCase() || '').includes(margemPreferenciaFilter.toLowerCase()));
+
+            // Client-Side Ordering directly on runtime memory buffer
+            if (ordenacaoFilter === '-data_publicacao_pncp') {
+                items.sort((a, b) => new Date(b.data_publicacao_pncp || 0).getTime() - new Date(a.data_publicacao_pncp || 0).getTime());
+            } else if (ordenacaoFilter === 'data_publicacao_pncp') {
+                items.sort((a, b) => new Date(a.data_publicacao_pncp || 0).getTime() - new Date(b.data_publicacao_pncp || 0).getTime());
+            }
 
             setResults(items);
             setTotalResults(data1?.total || 0);
@@ -152,7 +304,7 @@ export default function OportunidadesSearch() {
 
     const handlePageInputSubmit = () => {
         let p = parseInt(pageInput);
-        const maxPages = Math.ceil(totalResults / 100);
+        const maxPages = Math.min(Math.ceil(totalResults / 100), 100);
         if (isNaN(p) || p < 1) p = 1;
         if (maxPages > 0 && p > maxPages) p = maxPages;
         setPageInput(p.toString());
@@ -163,7 +315,7 @@ export default function OportunidadesSearch() {
         if (e.key === 'Enter') handlePageInputSubmit();
     };
 
-    const totalPages = Math.ceil(totalResults / 100);
+    const totalPages = Math.min(Math.ceil(totalResults / 100), 100);
 
     return (
         <div className="flex-1 overflow-hidden flex flex-col bg-background text-foreground min-h-full">
@@ -398,8 +550,9 @@ export default function OportunidadesSearch() {
             {/* Status Bar Footer w/ Pagination */}
             <div className="h-14 shrink-0 bg-muted/50 border-t border-border flex items-center justify-between px-6 text-xs text-muted-foreground shadow-[0_-2px_10px_rgba(0,0,0,0.02)]">
                 <div className="flex items-center gap-4">
-                    <span><strong>{totalResults.toLocaleString('pt-BR')}</strong> registros totais no filtro atual</span>
-                    <span>Mostrando <strong className="text-foreground">{results.length}</strong> Oportunidades Listadas</span>
+                    <span title={`Base bruta do governo: ${totalResults.toLocaleString('pt-BR')}`}>
+                        Mostrando <strong className="text-foreground">{results.length}</strong> encontrados nesta página de lote.
+                    </span>
                 </div>
 
                 <div className="flex items-center gap-2 bg-background border border-border p-1 rounded-md shadow-sm">
@@ -428,6 +581,7 @@ export default function OportunidadesSearch() {
                             className="w-12 h-7 text-center text-xs font-bold bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
                             value={pageInput}
                             onChange={(e) => setPageInput(e.target.value)}
+                            onFocus={() => setPageInput('')}
                             onBlur={handlePageInputSubmit}
                             onKeyDown={handlePageInputKeyDown}
                             disabled={loading}
@@ -485,10 +639,14 @@ export default function OportunidadesSearch() {
                                     <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2 border-b border-border pb-1">
                                         <Building2 className="h-4 w-4" /> Info do Órgão
                                     </h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-muted/20 p-4 rounded-lg border border-border/50">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-muted/20 p-4 rounded-lg border border-border/50">
                                         <div>
                                             <span className="block text-xs text-muted-foreground mb-0.5">Instituição Licitante</span>
                                             <span className="text-sm font-semibold">{selectedItem.orgao_nome}</span>
+                                        </div>
+                                        <div>
+                                            <span className="block text-xs text-muted-foreground mb-0.5">Unidade Compradora</span>
+                                            <span className="text-sm">{selectedItem.unidade_nome || 'N/A'} {selectedItem.unidade_codigo ? `(${selectedItem.unidade_codigo})` : ''}</span>
                                         </div>
                                         <div>
                                             <span className="block text-xs text-muted-foreground mb-0.5">CNPJ</span>
@@ -497,6 +655,14 @@ export default function OportunidadesSearch() {
                                         <div>
                                             <span className="block text-xs text-muted-foreground mb-0.5">Poder Administrativo</span>
                                             <span className="text-sm">{selectedItem.esfera_nome} • {selectedItem.poder_nome}</span>
+                                        </div>
+                                        <div>
+                                            <span className="block text-xs text-muted-foreground mb-0.5">Instrumento Convocatório</span>
+                                            <span className="text-sm">{selectedItem.tipo_instrumento_convocacao_nome || '-'}</span>
+                                        </div>
+                                        <div>
+                                            <span className="block text-xs text-muted-foreground mb-0.5">Amparo Legal / SRP</span>
+                                            <span className="text-sm">{selectedItem.amparo_legal_nome?.slice(0, 30) || 'N/A'}{selectedItem.amparo_legal_nome?.length && selectedItem.amparo_legal_nome.length > 30 ? '...' : ''} • SRP: {selectedItem.srp ? 'Sim' : 'Não'}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -537,16 +703,55 @@ export default function OportunidadesSearch() {
                                         </div>
                                     </div>
                                 </div>
+
+                                {/* Section 4: Arquivos Anexos */}
+                                <div className="space-y-3">
+                                    <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2 border-b border-border pb-1">
+                                        <FileText className="h-4 w-4" /> Arquivos Anexos
+                                    </h3>
+                                    <div className="bg-muted/10 border border-border rounded-lg overflow-hidden">
+                                        {loadingFiles ? (
+                                            <div className="p-6 flex items-center justify-center">
+                                                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                                            </div>
+                                        ) : selectedItemFiles.length === 0 ? (
+                                            <div className="p-4 text-center text-sm text-muted-foreground">Nenhum arquivo listado na API do PNCP para este edital.</div>
+                                        ) : (
+                                            <ul className="divide-y divide-border">
+                                                {selectedItemFiles.map((file, idx) => (
+                                                    <li key={idx} className="p-3 hover:bg-muted/20 flex items-center justify-between gap-4">
+                                                        <div className="flex items-center gap-3 overflow-hidden">
+                                                            <FileText className="h-5 w-5 text-primary shrink-0" />
+                                                            <div className="truncate">
+                                                                <span className="block text-sm font-semibold truncate" title={file.titulo}>{file.titulo}</span>
+                                                                <span className="block text-[11px] text-muted-foreground uppercase">{file.tipoDocumentoNome}</span>
+                                                            </div>
+                                                        </div>
+                                                        <a href={file.url} target="_blank" rel="noopener noreferrer" className="shrink-0 flex items-center justify-center h-8 w-8 rounded bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-colors outline-none focus:ring-2 focus:ring-primary" title="Download Arquivo Analítico">
+                                                            <ExternalLink className="h-4 w-4" />
+                                                        </a>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
 
-                            <div className="p-4 border-t border-border bg-muted/50 flex justify-end gap-3 sticky bottom-0">
+                            <div className="p-4 border-t border-border bg-muted/50 flex justify-end gap-3 sticky bottom-0 z-10 w-full overflow-hidden shrink-0 items-center">
+                                <button
+                                    onClick={() => setIsExportDialogOpen(true)}
+                                    className="px-4 py-2 bg-foreground text-background text-sm font-bold rounded-md hover:bg-foreground/90 transition-all flex items-center justify-center gap-2 shadow-sm mr-auto"
+                                >
+                                    <KanbanSquare className="h-4 w-4" /> Exportar p/ Kunbun
+                                </button>
                                 <DialogClose asChild>
                                     <button className="px-4 py-2 border border-border bg-background hover:bg-muted text-foreground text-sm font-medium rounded-md transition-colors">
                                         Fechar Resumo
                                     </button>
                                 </DialogClose>
                                 <a
-                                    href={`https://pncp.gov.br${selectedItem.item_url}`}
+                                    href={getOfficialLink(selectedItem)}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="px-6 py-2 bg-primary text-primary-foreground text-sm font-bold rounded-md hover:bg-primary/90 transition-all flex items-center justify-center gap-2 shadow-sm"
@@ -554,6 +759,92 @@ export default function OportunidadesSearch() {
                                     Ir para o Edital Oficial <ExternalLink className="h-4 w-4" />
                                 </a>
                             </div>
+
+                            {/* Export to Kunbun Internal Dialog */}
+                            <AnimatePresence>
+                                {isExportDialogOpen && (
+                                    <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
+                                        <DialogContent className="max-w-md bg-background border border-border rounded-xl shadow-2xl p-6 z-[110]">
+                                            <DialogHeader className="mb-4">
+                                                <DialogTitle className="flex items-center gap-2 text-lg">
+                                                    <KanbanSquare className="h-5 w-5 text-primary" />
+                                                    Exportar para o Kunbun (Kanban)
+                                                </DialogTitle>
+                                                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                                                    Escolha a pasta, o quadro e a coluna onde este edital deverá ser inserido como um novo Cartão de tarefa.
+                                                </p>
+                                            </DialogHeader>
+
+                                            <div className="space-y-4">
+                                                <div className="space-y-1">
+                                                    <label className="text-[11px] font-bold uppercase text-muted-foreground">1. Escolha a Pasta</label>
+                                                    <select
+                                                        value={exportFolderId}
+                                                        onChange={(e) => {
+                                                            setExportFolderId(e.target.value);
+                                                            setExportBoardId('');
+                                                            setExportListId('');
+                                                        }}
+                                                        className="w-full h-9 bg-muted border border-border rounded px-2 text-sm focus:ring-1 focus:ring-primary"
+                                                    >
+                                                        <option value="">Selecione uma pasta...</option>
+                                                        {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                                                    </select>
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <label className="text-[11px] font-bold uppercase text-muted-foreground">2. Escolha o Quadro (Board)</label>
+                                                    <select
+                                                        value={exportBoardId}
+                                                        onChange={(e) => {
+                                                            setExportBoardId(e.target.value);
+                                                            setExportListId('');
+                                                        }}
+                                                        disabled={!exportFolderId}
+                                                        className="w-full h-9 bg-muted border border-border rounded px-2 text-sm focus:ring-1 focus:ring-primary disabled:opacity-50"
+                                                    >
+                                                        <option value="">Selecione um quadro...</option>
+                                                        {boards.filter(b => b.folderId === exportFolderId).map(b => (
+                                                            <option key={b.id} value={b.id}>{b.name}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <label className="text-[11px] font-bold uppercase text-muted-foreground">3. Escolha a Coluna Principal</label>
+                                                    <select
+                                                        value={exportListId}
+                                                        onChange={(e) => setExportListId(e.target.value)}
+                                                        disabled={!exportBoardId}
+                                                        className="w-full h-9 bg-muted border border-border rounded px-2 text-sm focus:ring-1 focus:ring-primary disabled:opacity-50"
+                                                    >
+                                                        <option value="">Selecione a Lista de Destino...</option>
+                                                        {lists.filter(l => l.boardId === exportBoardId).map(l => (
+                                                            <option key={l.id} value={l.id}>{l.title}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-8 flex items-center justify-end gap-3">
+                                                <button
+                                                    onClick={() => setIsExportDialogOpen(false)}
+                                                    className="px-4 py-2 border border-border hover:bg-muted text-sm font-medium rounded-md transition-colors"
+                                                >
+                                                    Cancelar
+                                                </button>
+                                                <button
+                                                    onClick={handleExportToKunbun}
+                                                    disabled={!exportListId}
+                                                    className="px-6 py-2 bg-primary text-primary-foreground text-sm font-bold rounded-md hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-50"
+                                                >
+                                                    Adicionar Cartão
+                                                </button>
+                                            </div>
+                                        </DialogContent>
+                                    </Dialog>
+                                )}
+                            </AnimatePresence>
                         </DialogContent>
                     </Dialog>
                 )}
