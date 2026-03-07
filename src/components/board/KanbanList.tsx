@@ -319,7 +319,7 @@ const KanbanListComponent = ({ list, dragHandleProps, onCardClick }: Props) => {
       )}
 
       {/* Cards */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-1 custom-scrollbar w-full">
+      <div className="flex-1 min-h-[50px] overflow-y-auto px-1 custom-scrollbar w-full">
         <Droppable droppableId={list.id} type="CARD">
           {(provided, snapshot) => (
             <div

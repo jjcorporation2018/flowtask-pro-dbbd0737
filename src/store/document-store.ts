@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { useAuditStore } from './audit-store';
+import { useAuthStore } from './auth-store';
 
 export type DocumentStatus = 'valid' | 'expiring' | 'expired';
 
@@ -68,6 +70,17 @@ export const useDocumentStore = create<DocumentStore>()(
                 const now = new Date().toISOString();
                 const status = checkStatus(doc.expirationDate);
 
+                const currentUser = useAuthStore.getState().currentUser;
+                if (currentUser) {
+                    useAuditStore.getState().addLog({
+                        userId: currentUser.id,
+                        userName: currentUser.name,
+                        action: 'CRIAR',
+                        entity: 'DOCUMENTO',
+                        details: `Fez upload do documento "${doc.title}"`
+                    });
+                }
+
                 set((state) => ({
                     documents: [
                         ...state.documents,
@@ -76,6 +89,20 @@ export const useDocumentStore = create<DocumentStore>()(
                 }));
             },
             updateDocument: (id, updatedFields) => {
+                const currentUser = useAuthStore.getState().currentUser;
+                const oldDoc = get().documents.find(d => d.id === id);
+
+                if (currentUser && oldDoc && !updatedFields.lastNotifiedIndex) {
+                    // Avoid logging internal notification updates
+                    useAuditStore.getState().addLog({
+                        userId: currentUser.id,
+                        userName: currentUser.name,
+                        action: 'EDITAR',
+                        entity: 'DOCUMENTO',
+                        details: `Atualizou dados do documento "${oldDoc.title}"`
+                    });
+                }
+
                 set((state) => ({
                     documents: state.documents.map((doc) => {
                         if (doc.id === id) {
@@ -91,6 +118,19 @@ export const useDocumentStore = create<DocumentStore>()(
                 }));
             },
             trashDocument: (id) => {
+                const currentUser = useAuthStore.getState().currentUser;
+                const targetDoc = get().documents.find(d => d.id === id);
+
+                if (currentUser && targetDoc) {
+                    useAuditStore.getState().addLog({
+                        userId: currentUser.id,
+                        userName: currentUser.name,
+                        action: 'EXCLUIR',
+                        entity: 'DOCUMENTO',
+                        details: `Moveu o documento "${targetDoc.title}" para a lixeira`
+                    });
+                }
+
                 set((state) => ({
                     documents: state.documents.map((doc) => doc.id === id ? { ...doc, trashed: true, updatedAt: new Date().toISOString() } : doc),
                 }));

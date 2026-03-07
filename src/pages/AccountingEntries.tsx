@@ -1,16 +1,20 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAccountingStore } from '@/store/accounting-store';
 import { useKanbanStore } from '@/store/kanban-store';
-import { ArrowUpRight, ArrowDownRight, Edit, Trash2, ArrowLeft, Search, Filter, Calendar } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Edit, Trash2, ArrowLeft, Search, Filter, Calendar, Paperclip, Plus, ChevronDown } from 'lucide-react';
 import EntryFormModal from '@/components/accounting/EntryFormModal';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '@/store/auth-store';
 
 const AccountingEntries = () => {
-    const { entries, categories, deleteEntry } = useAccountingStore();
-    const { mainCompanies } = useKanbanStore();
-    const activeCompany = mainCompanies.find((c) => c.isDefault) || mainCompanies[0];
-    const { currentUser } = useAuthStore();
+    const entries = useAccountingStore(state => state.entries);
+    const categories = useAccountingStore(state => state.categories);
+    const deleteEntry = useAccountingStore(state => state.deleteEntry);
+
+    const mainCompanies = useKanbanStore(state => state.mainCompanies);
+    const activeCompany = useMemo(() => mainCompanies.find((c) => c.isDefault) || mainCompanies[0], [mainCompanies]);
+
+    const currentUser = useAuthStore(state => state.currentUser);
 
     const [modalOpen, setModalOpen] = useState(false);
     const [modalType, setModalType] = useState<'revenue' | 'expense'>('revenue');
@@ -22,26 +26,33 @@ const AccountingEntries = () => {
     const [filterStatus, setFilterStatus] = useState('all');
     const [filterType, setFilterType] = useState('all');
     const [showFilters, setShowFilters] = useState(false);
+    const [showMobileActions, setShowMobileActions] = useState(false);
 
-    const companyEntries = entries.filter(e => e.companyId === activeCompany?.id);
+    const filteredEntries = useMemo(() => {
+        const companyEntries = entries.filter(e => e.companyId === activeCompany?.id);
 
-    const filteredEntries = companyEntries
-        .filter(e => {
-            const matchesSearch = e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                categories.find(c => c.id === e.categoryId)?.name.toLowerCase().includes(searchQuery.toLowerCase());
-            const matchesType = filterType === 'all' || e.type === filterType;
-            const matchesStatus = filterStatus === 'all' || e.status === filterStatus;
-            const matchesCategory = filterCategory === 'all' || e.categoryId === filterCategory;
-            const matchesDate = (!startDate || e.date >= startDate) && (!endDate || e.date <= endDate + 'T23:59:59.999Z');
+        return companyEntries
+            .filter(e => {
+                const matchesSearch = e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    categories.find(c => c.id === e.categoryId)?.name.toLowerCase().includes(searchQuery.toLowerCase());
+                const matchesType = filterType === 'all' || e.type === filterType;
+                const matchesStatus = filterStatus === 'all' || e.status === filterStatus;
+                const matchesCategory = filterCategory === 'all' || e.categoryId === filterCategory;
+                const matchesDate = (!startDate || e.date >= startDate) && (!endDate || e.date <= endDate + 'T23:59:59.999Z');
 
-            return matchesSearch && matchesType && matchesStatus && matchesCategory && matchesDate;
-        })
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                return matchesSearch && matchesType && matchesStatus && matchesCategory && matchesDate;
+            })
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }, [entries, activeCompany?.id, categories, searchQuery, filterType, filterStatus, filterCategory, startDate, endDate]);
 
-    const totalRevenue = filteredEntries.filter(e => e.type === 'revenue' && e.status === 'paid').reduce((acc, curr) => acc + curr.amount, 0);
-    const totalPendingRevenue = filteredEntries.filter(e => e.type === 'revenue' && e.status === 'pending').reduce((acc, curr) => acc + curr.amount, 0);
-    const totalExpense = filteredEntries.filter(e => e.type === 'expense' && e.status === 'paid').reduce((acc, curr) => acc + curr.amount, 0);
-    const totalPendingExpense = filteredEntries.filter(e => e.type === 'expense' && e.status === 'pending').reduce((acc, curr) => acc + curr.amount, 0);
+    const { totalRevenue, totalPendingRevenue, totalExpense, totalPendingExpense } = useMemo(() => {
+        return {
+            totalRevenue: filteredEntries.filter(e => e.type === 'revenue' && e.status === 'paid').reduce((acc, curr) => acc + curr.amount, 0),
+            totalPendingRevenue: filteredEntries.filter(e => e.type === 'revenue' && e.status === 'pending').reduce((acc, curr) => acc + curr.amount, 0),
+            totalExpense: filteredEntries.filter(e => e.type === 'expense' && e.status === 'paid').reduce((acc, curr) => acc + curr.amount, 0),
+            totalPendingExpense: filteredEntries.filter(e => e.type === 'expense' && e.status === 'pending').reduce((acc, curr) => acc + curr.amount, 0)
+        };
+    }, [filteredEntries]);
 
     const handleEdit = (id: string, type: 'revenue' | 'expense') => {
         setModalType(type);
@@ -85,20 +96,54 @@ const AccountingEntries = () => {
                             </button>
                         </div>
                         <div className="flex gap-2 w-full sm:w-auto">
-                            <button
-                                onClick={() => { setModalType('revenue'); setEntryToEdit(undefined); setModalOpen(true); }}
-                                disabled={currentUser?.role !== 'ADMIN' && !currentUser?.permissions?.canEdit}
-                                className="flex-1 sm:flex-none px-4 py-2 bg-emerald-500 text-white rounded-md text-sm font-bold hover:bg-emerald-600 transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                <ArrowUpRight className="h-4 w-4" /> Nova Entrada
-                            </button>
-                            <button
-                                onClick={() => { setModalType('expense'); setEntryToEdit(undefined); setModalOpen(true); }}
-                                disabled={currentUser?.role !== 'ADMIN' && !currentUser?.permissions?.canEdit}
-                                className="flex-1 sm:flex-none px-4 py-2 bg-rose-500 text-white rounded-md text-sm font-bold hover:bg-rose-600 transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                <ArrowDownRight className="h-4 w-4" /> Nova Saída
-                            </button>
+                            {/* Desktop Buttons */}
+                            <div className="hidden sm:flex gap-2">
+                                <button
+                                    onClick={() => { setModalType('revenue'); setEntryToEdit(undefined); setModalOpen(true); }}
+                                    disabled={currentUser?.role !== 'ADMIN' && !currentUser?.permissions?.canEdit}
+                                    className="px-4 py-2 bg-emerald-500 text-white rounded-md text-sm font-bold hover:bg-emerald-600 transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <ArrowUpRight className="h-4 w-4" /> Nova Entrada
+                                </button>
+                                <button
+                                    onClick={() => { setModalType('expense'); setEntryToEdit(undefined); setModalOpen(true); }}
+                                    disabled={currentUser?.role !== 'ADMIN' && !currentUser?.permissions?.canEdit}
+                                    className="px-4 py-2 bg-rose-500 text-white rounded-md text-sm font-bold hover:bg-rose-600 transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <ArrowDownRight className="h-4 w-4" /> Nova Saída
+                                </button>
+                            </div>
+
+                            {/* Mobile Dropdown Button */}
+                            <div className="sm:hidden relative w-full">
+                                <button
+                                    onClick={() => setShowMobileActions(!showMobileActions)}
+                                    disabled={currentUser?.role !== 'ADMIN' && !currentUser?.permissions?.canEdit}
+                                    className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-bold hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <Plus className="h-4 w-4" /> Novo Lançamento <ChevronDown className="h-4 w-4 ml-1" />
+                                </button>
+
+                                {showMobileActions && (
+                                    <>
+                                        <div className="fixed inset-0 z-30" onClick={() => setShowMobileActions(false)} />
+                                        <div className="absolute top-full left-0 right-0 mt-2 z-40 bg-card border border-border rounded-lg shadow-xl overflow-hidden flex flex-col animate-in slide-in-from-top-2">
+                                            <button
+                                                onClick={() => { setModalType('revenue'); setEntryToEdit(undefined); setModalOpen(true); setShowMobileActions(false); }}
+                                                className="px-4 py-3 text-sm font-bold text-emerald-500 hover:bg-muted flex items-center gap-2 border-b border-border/50 text-left"
+                                            >
+                                                <ArrowUpRight className="h-4 w-4" /> Registrar Nova Entrada
+                                            </button>
+                                            <button
+                                                onClick={() => { setModalType('expense'); setEntryToEdit(undefined); setModalOpen(true); setShowMobileActions(false); }}
+                                                className="px-4 py-3 text-sm font-bold text-rose-500 hover:bg-muted flex items-center gap-2 text-left"
+                                            >
+                                                <ArrowDownRight className="h-4 w-4" /> Registrar Nova Saída
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
                         </div>
                     </div>
 
@@ -194,7 +239,14 @@ const AccountingEntries = () => {
                                                         {new Date(entry.date).toLocaleDateString('pt-BR')}
                                                     </td>
                                                     <td className="px-4 py-3 font-medium text-foreground">
-                                                        {entry.title}
+                                                        <div className="flex items-center gap-2">
+                                                            <span>{entry.title}</span>
+                                                            {entry.attachments && entry.attachments.length > 0 && (
+                                                                <span title={`${entry.attachments.length} anexo(s)`} className="flex items-center text-muted-foreground bg-secondary px-1.5 py-0.5 rounded text-[10px]">
+                                                                    <Paperclip className="h-3 w-3 mr-1" /> {entry.attachments.length}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </td>
                                                     <td className="px-4 py-3">
                                                         <span className="px-2 py-1 bg-secondary text-secondary-foreground rounded-full text-[10px] font-medium border border-border">

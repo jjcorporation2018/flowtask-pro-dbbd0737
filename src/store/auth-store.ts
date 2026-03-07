@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
+import { useAuditStore } from './audit-store';
 
 export type UserRole = 'ADMIN' | 'USER';
 
@@ -125,6 +126,15 @@ export const useAuthStore = create<AuthState>()(
                         localStorage.removeItem('rememberMe');
                     }
                     set({ currentUser: user, isAuthenticated: true });
+
+                    useAuditStore.getState().addLog({
+                        userId: user.id,
+                        userName: user.name,
+                        action: 'LOGIN',
+                        entity: 'USUÁRIO',
+                        details: `Usuário acessou o sistema`
+                    });
+
                     return true;
                 }
 
@@ -140,12 +150,24 @@ export const useAuthStore = create<AuthState>()(
                 set((state) => {
                     if (!state.currentUser) return state;
 
-                    const updatedUser = { ...state.currentUser, ...updates };
+                    // SECURITY PATCH: Prevent Privilege Escalation
+                    // Destructure and drop any sensitive fields the user might maliciously inject via console
+                    const { role, permissions, status, createdAt, id, ...safeUpdates } = updates as any;
+
+                    const updatedUser = { ...state.currentUser, ...safeUpdates };
 
                     // Also update the user in the systemUsers array to keep them in sync
                     const updatedSystemUsers = state.systemUsers.map(u =>
                         u.id === state.currentUser?.id ? updatedUser : u
                     );
+
+                    useAuditStore.getState().addLog({
+                        userId: state.currentUser.id,
+                        userName: state.currentUser.name,
+                        action: 'EDITAR',
+                        entity: 'USUÁRIO',
+                        details: `Atualizou o próprio perfil`
+                    });
 
                     return {
                         currentUser: updatedUser,
@@ -155,34 +177,83 @@ export const useAuthStore = create<AuthState>()(
             },
 
             addUser: (user) => {
-                set((state) => ({
-                    systemUsers: [
-                        ...state.systemUsers,
-                        {
-                            ...user,
-                            id: crypto.randomUUID(),
-                            createdAt: new Date().toISOString()
-                        }
-                    ]
-                }));
+                set((state) => {
+                    // SECURITY PATCH: Broken Access Control Guard
+                    if (state.currentUser?.role !== 'ADMIN') return state;
+
+                    const newId = crypto.randomUUID();
+
+                    useAuditStore.getState().addLog({
+                        userId: state.currentUser.id,
+                        userName: state.currentUser.name,
+                        action: 'CRIAR',
+                        entity: 'USUÁRIO',
+                        details: `Criou o usuário ${user.name} (${user.email})`
+                    });
+
+                    return {
+                        systemUsers: [
+                            ...state.systemUsers,
+                            {
+                                ...user,
+                                id: newId,
+                                createdAt: new Date().toISOString()
+                            }
+                        ]
+                    };
+                });
             },
 
             updateUser: (id, updates) => {
-                set((state) => ({
-                    systemUsers: state.systemUsers.map(u =>
-                        u.id === id ? { ...u, ...updates } : u
-                    ),
-                    // If the updated user is the current user, update currentUser too
-                    currentUser: state.currentUser?.id === id
-                        ? { ...state.currentUser, ...updates }
-                        : state.currentUser
-                }));
+                set((state) => {
+                    // SECURITY PATCH: Broken Access Control Guard
+                    if (state.currentUser?.role !== 'ADMIN') return state;
+
+                    const targetUser = state.systemUsers.find(u => u.id === id);
+
+                    if (targetUser) {
+                        useAuditStore.getState().addLog({
+                            userId: state.currentUser.id,
+                            userName: state.currentUser.name,
+                            action: 'EDITAR',
+                            entity: 'USUÁRIO',
+                            details: `Editou permissões ou dados do usuário ${targetUser.name}`
+                        });
+                    }
+
+                    return {
+                        systemUsers: state.systemUsers.map(u =>
+                            u.id === id ? { ...u, ...updates } : u
+                        ),
+                        // If the updated user is the current user, update currentUser too
+                        currentUser: state.currentUser?.id === id
+                            ? { ...state.currentUser, ...updates }
+                            : state.currentUser
+                    };
+                });
             },
 
             removeUser: (id) => {
-                set((state) => ({
-                    systemUsers: state.systemUsers.filter(u => u.id !== id)
-                }));
+                set((state) => {
+                    // SECURITY PATCH: Broken Access Control Guard
+                    if (state.currentUser?.role !== 'ADMIN') return state;
+
+                    const targetUser = state.systemUsers.find(u => u.id === id);
+
+                    if (targetUser) {
+                        useAuditStore.getState().addLog({
+                            userId: state.currentUser.id,
+                            userName: state.currentUser.name,
+                            action: 'EXCLUIR',
+                            entity: 'USUÁRIO',
+                            details: `Removeu o usuário ${targetUser.name}`
+                        });
+                    }
+
+                    return {
+                        systemUsers: state.systemUsers.filter(u => u.id !== id)
+                    };
+                });
             }
         }),
         {

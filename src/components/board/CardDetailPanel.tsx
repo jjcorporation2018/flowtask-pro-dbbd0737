@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import BudgetModal from '../budgets/BudgetModal';
 import { Budget, BudgetStatus, BudgetType } from '@/types/kanban';
 import { useAuthStore } from '@/store/auth-store';
+import DOMPurify from 'dompurify';
 
 const statusStyles: Record<BudgetStatus, string> = {
   Aguardando: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20',
@@ -132,7 +133,7 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
   const handleSaveSummary = () => updateCard(cardId, { summary });
   const handleSaveDesc = () => {
     if (descRef.current) {
-      updateCard(cardId, { description: descRef.current.innerHTML });
+      updateCard(cardId, { description: DOMPurify.sanitize(descRef.current.innerHTML) });
     }
   };
   const handleToggleLabel = (labelId: string) => {
@@ -475,7 +476,7 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
                 contentEditable={canEdit}
                 onBlur={handleSaveDesc}
                 onClick={() => !isDescExpanded && setIsDescExpanded(true)}
-                dangerouslySetInnerHTML={{ __html: card.description }}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(card.description) }}
                 className={`w-full bg-secondary rounded-b-lg px-3 py-2 text-xs outline-none border border-border focus:border-primary prose prose-sm max-w-none transition-all duration-300 ${isDescExpanded ? 'min-h-[120px]' : 'max-h-[60px] overflow-hidden cursor-pointer hover:bg-secondary/80'}`}
                 style={{ lineHeight: 1.6 }}
               />

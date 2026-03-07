@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useAuthStore } from '@/store/auth-store';
 import { LogOut, User, Camera, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
@@ -9,6 +9,7 @@ export default function UserProfile() {
     const [isEditing, setIsEditing] = useState(false);
     const [editName, setEditName] = useState(currentUser?.name || '');
     const [editPhoto, setEditPhoto] = useState(currentUser?.photoURL || '');
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     if (!currentUser) return null;
 
@@ -25,6 +26,23 @@ export default function UserProfile() {
         });
         setIsEditing(false);
         toast.success("Perfil atualizado com sucesso.");
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (!file.type.startsWith('image/')) {
+            toast.error("Por favor, selecione um arquivo de imagem.");
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const base64String = reader.result as string;
+            setEditPhoto(base64String);
+        };
+        reader.readAsDataURL(file);
     };
 
     const handleLogout = () => {
@@ -61,11 +79,27 @@ export default function UserProfile() {
                     <div className="absolute top-full right-0 mt-2 w-72 bg-popover border border-border shadow-2xl rounded-xl z-50 text-foreground overflow-hidden animate-in slide-in-from-top-2 fade-in duration-200">
                         {/* Header Box */}
                         <div className="p-4 bg-muted/30 border-b border-border flex flex-col items-center">
-                            <div className="relative w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xl font-bold mb-3 overflow-hidden shadow-inner border border-primary/20">
-                                {currentUser.photoURL ? (
-                                    <img src={currentUser.photoURL} alt={currentUser.name} className="w-full h-full object-cover" />
+                            <div className="relative w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xl font-bold mb-3 overflow-hidden shadow-inner border border-primary/20 group">
+                                {isEditing ? (
+                                    <>
+                                        {editPhoto ? (
+                                            <img src={editPhoto} alt={currentUser.name} className="w-full h-full object-cover" />
+                                        ) : (
+                                            initial
+                                        )}
+                                        <div
+                                            className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                                            onClick={() => fileInputRef.current?.click()}
+                                        >
+                                            <Camera className="w-6 h-6 text-white" />
+                                        </div>
+                                    </>
                                 ) : (
-                                    initial
+                                    currentUser.photoURL ? (
+                                        <img src={currentUser.photoURL} alt={currentUser.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                        initial
+                                    )
                                 )}
                             </div>
 
@@ -93,13 +127,30 @@ export default function UserProfile() {
                                         />
                                     </div>
                                     <div>
-                                        <label className="text-[10px] uppercase font-bold text-muted-foreground mb-1 block">URL da Foto (Opcional)</label>
+                                        <label className="text-[10px] uppercase font-bold text-muted-foreground mb-1 block">Foto do Perfil</label>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => fileInputRef.current?.click()}
+                                                className="flex-1 bg-secondary text-secondary-foreground text-xs py-1.5 rounded flex items-center justify-center gap-1.5 font-medium hover:bg-secondary/80 transition-colors"
+                                            >
+                                                <Camera className="w-3.5 h-3.5" />
+                                                Enviar Foto
+                                            </button>
+                                            {editPhoto && (
+                                                <button
+                                                    onClick={() => setEditPhoto('')}
+                                                    className="px-2 bg-destructive/10 text-destructive text-xs py-1.5 rounded hover:bg-destructive/20 transition-colors font-medium"
+                                                >
+                                                    Remover
+                                                </button>
+                                            )}
+                                        </div>
                                         <input
-                                            type="text"
-                                            value={editPhoto}
-                                            onChange={e => setEditPhoto(e.target.value)}
-                                            placeholder="https://..."
-                                            className="w-full bg-background border border-border rounded px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary"
+                                            type="file"
+                                            ref={fileInputRef}
+                                            onChange={handleFileChange}
+                                            accept="image/png, image/jpeg, image/jpg, image/webp"
+                                            className="hidden"
                                         />
                                     </div>
                                     <div className="flex justify-end gap-2 pt-1">

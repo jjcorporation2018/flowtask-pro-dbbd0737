@@ -7,9 +7,14 @@ import { useState, useMemo } from 'react';
 import { Card } from '@/types/kanban';
 
 export default function TeamWorkloadPage() {
-    const { members, cards, boards, lists, labels, budgets } = useKanbanStore();
-    const { documents } = useDocumentStore();
-    const { entries } = useAccountingStore();
+    const members = useKanbanStore(state => state.members);
+    const cards = useKanbanStore(state => state.cards);
+    const boards = useKanbanStore(state => state.boards);
+    const lists = useKanbanStore(state => state.lists);
+    const labels = useKanbanStore(state => state.labels);
+    const budgets = useKanbanStore(state => state.budgets);
+    const documents = useDocumentStore(state => state.documents);
+    const entries = useAccountingStore(state => state.entries);
     const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
     const [period, setPeriod] = useState<'week' | 'month' | 'year'>('week');
 

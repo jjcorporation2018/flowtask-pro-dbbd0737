@@ -20,7 +20,22 @@ const EntryFormModal = ({ open, onOpenChange, type, onSuccess, existingEntryId }
 
     const typeCategories = categories.filter(c => c.type === type);
 
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<{
+        title: string;
+        description: string;
+        amount: string;
+        categoryId: string;
+        date: string;
+        status: 'pending' | 'paid' | 'overdue';
+        documentNumber: string;
+        documentEntity: string;
+        documentEntityId: string;
+        competenceDate: string;
+        paymentMethod: any;
+        bankAccountId: string;
+        notes: string;
+        attachments?: string[];
+    }>({
         title: '',
         description: '',
         amount: '',
@@ -33,7 +48,8 @@ const EntryFormModal = ({ open, onOpenChange, type, onSuccess, existingEntryId }
         competenceDate: new Date().toISOString().split('T')[0],
         paymentMethod: 'bank_transfer' as any,
         bankAccountId: '',
-        notes: ''
+        notes: '',
+        attachments: []
     });
 
     const [isRecurring, setIsRecurring] = useState(false);
@@ -58,7 +74,8 @@ const EntryFormModal = ({ open, onOpenChange, type, onSuccess, existingEntryId }
                         competenceDate: entry.competenceDate ? new Date(entry.competenceDate).toISOString().split('T')[0] : new Date(entry.date).toISOString().split('T')[0],
                         paymentMethod: entry.paymentMethod || 'bank_transfer',
                         bankAccountId: entry.bankAccountId || '',
-                        notes: entry.notes || ''
+                        notes: entry.notes || '',
+                        attachments: entry.attachments || []
                     });
                 }
             } else {
@@ -75,7 +92,8 @@ const EntryFormModal = ({ open, onOpenChange, type, onSuccess, existingEntryId }
                     competenceDate: new Date().toISOString().split('T')[0],
                     paymentMethod: 'bank_transfer',
                     bankAccountId: '',
-                    notes: ''
+                    notes: '',
+                    attachments: [] as string[]
                 });
                 setIsRecurring(false);
                 setRecurrenceFrequency('monthly');
@@ -95,6 +113,29 @@ const EntryFormModal = ({ open, onOpenChange, type, onSuccess, existingEntryId }
             dateObj.setFullYear(dateObj.getFullYear() + iteration);
         }
         return dateObj.toISOString();
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files) {
+            Array.from(e.target.files).forEach((file) => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const base64String = reader.result as string;
+                    setFormData((prev) => ({
+                        ...prev,
+                        attachments: [...(prev.attachments || []), base64String],
+                    }));
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+    };
+
+    const removeAttachment = (indexToRemove: number) => {
+        setFormData((prev) => ({
+            ...prev,
+            attachments: prev.attachments?.filter((_, index) => index !== indexToRemove) || [],
+        }));
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -133,7 +174,8 @@ const EntryFormModal = ({ open, onOpenChange, type, onSuccess, existingEntryId }
             competenceDate: new Date(formData.competenceDate).toISOString(),
             paymentMethod: formData.paymentMethod,
             bankAccountId: formData.bankAccountId || undefined,
-            notes: formData.notes
+            notes: formData.notes,
+            attachments: formData.attachments
         };
 
         if (existingEntryId) {
@@ -174,7 +216,8 @@ const EntryFormModal = ({ open, onOpenChange, type, onSuccess, existingEntryId }
             competenceDate: new Date().toISOString().split('T')[0],
             paymentMethod: 'bank_transfer',
             bankAccountId: '',
-            notes: ''
+            notes: '',
+            attachments: [] as string[]
         });
 
         onOpenChange(false);
@@ -326,6 +369,48 @@ const EntryFormModal = ({ open, onOpenChange, type, onSuccess, existingEntryId }
                                 placeholder="Anotações para contabilidade..."
                                 className="w-full bg-secondary/30 border border-border rounded px-2 py-1.5 text-xs outline-none focus:border-primary resize-none custom-scrollbar"
                             />
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-semibold uppercase text-muted-foreground">Comprovantes e Anexos (PDF / Imagem)</label>
+
+                            <div className="flex flex-col gap-2">
+                                <label className="flex items-center justify-center gap-2 cursor-pointer w-full border border-dashed border-border/50 rounded hover:bg-secondary/30 transition-colors p-3 py-4 bg-background">
+                                    <input
+                                        type="file"
+                                        className="hidden"
+                                        multiple
+                                        accept="image/png, image/jpeg, application/pdf"
+                                        onChange={handleFileChange}
+                                    />
+                                    <span className="text-xs text-muted-foreground font-medium">Clique para arrastar ou adicionar arquivo</span>
+                                </label>
+
+                                {formData.attachments && formData.attachments.length > 0 && (
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
+                                        {formData.attachments.map((file, index) => {
+                                            const isImage = file.startsWith('data:image');
+                                            return (
+                                                <div key={index} className="relative group rounded border border-border bg-secondary overflow-hidden h-16 flex items-center justify-center">
+                                                    {isImage ? (
+                                                        <img src={file} className="object-cover w-full h-full opacity-80 group-hover:opacity-50 transition-opacity" alt="Anexo" />
+                                                    ) : (
+                                                        <div className="text-xs font-bold text-muted-foreground uppercase">PDF</div>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeAttachment(index)}
+                                                        className="absolute inset-0 m-auto w-6 h-6 bg-destructive/80 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                                        title="Remover anexo"
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
 

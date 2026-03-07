@@ -49,9 +49,11 @@ const AppContent = () => {
     const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
 
     const monitorInterval = setInterval(async () => {
+      const store = useKanbanStore.getState();
+
       // Find one company that hasn't been checked in 24 hours
       const now = new Date();
-      const needsCheck = companies.find(c => {
+      const needsCheck = store.companies.find(c => {
         if (!c.lastCnpjCheck) return true;
         const lastCheck = new Date(c.lastCnpjCheck);
         return (now.getTime() - lastCheck.getTime()) > TWENTY_FOUR_HOURS;
@@ -68,18 +70,18 @@ const AppContent = () => {
 
               if (invalidStatuses.includes(data.descricao_situacao_cadastral?.toUpperCase())) {
                 // If the status became invalid, delete it and notify the user
-                permanentlyDeleteCompany(needsCheck.id);
-                addNotification(
+                store.permanentlyDeleteCompany(needsCheck.id);
+                store.addNotification(
                   'Empresa Removida Automaticamente',
                   `O CNPJ ${needsCheck.cnpj} (${needsCheck.nome_fantasia || needsCheck.razao_social}) foi excluído do sistema pois a situação cadastral na Receita consta como "${data.descricao_situacao_cadastral}".`
                 );
               } else {
                 // Otherwise, just timestamp it to prevent re-checking for 24h
-                updateCompany(needsCheck.id, { lastCnpjCheck: new Date().toISOString() });
+                store.updateCompany(needsCheck.id, { lastCnpjCheck: new Date().toISOString() });
               }
             } else {
               // API might be down or rate limited, let's just mark it checked so we move to the next
-              updateCompany(needsCheck.id, { lastCnpjCheck: new Date().toISOString() });
+              store.updateCompany(needsCheck.id, { lastCnpjCheck: new Date().toISOString() });
             }
           }
         } catch (error) {
@@ -89,27 +91,30 @@ const AppContent = () => {
     }, CHECK_INTERVAL);
 
     return () => clearInterval(monitorInterval);
-  }, [companies, permanentlyDeleteCompany, updateCompany, addNotification]);
+  }, []); // Run only once
 
   // Document Expiration Monitor
   useEffect(() => {
     // Run validation on load and then periodically
-    validateDocumentStatuses();
+    useDocumentStore.getState().validateDocumentStatuses();
 
     // Check every hour
     const interval = setInterval(() => {
-      validateDocumentStatuses();
+      useDocumentStore.getState().validateDocumentStatuses();
     }, 60 * 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [validateDocumentStatuses]);
+  }, []); // Run only once
 
   useEffect(() => {
     // Check for expiring documents and notify
     const CHECK_INTERVAL = 60 * 60 * 1000; // Check every hour
     const checkDocs = () => {
+      const docStore = useDocumentStore.getState();
+      const uiStore = useKanbanStore.getState();
       const now = new Date();
-      documents.forEach(doc => {
+
+      docStore.documents.forEach(doc => {
         if (doc.status !== 'valid') {
           const expirationDate = new Date(doc.expirationDate);
           const diffDays = Math.ceil((expirationDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
@@ -123,12 +128,12 @@ const AppContent = () => {
 
           if (notifyKey !== -1 && doc.lastNotifiedIndex !== notifyKey) {
             const isExpired = doc.status === 'expired';
-            addNotification(
+            uiStore.addNotification(
               isExpired ? 'Documento Expirado' : 'Documento Vencendo Próximo',
               `O documento "${doc.title}" ${isExpired ? 'expirou em' : 'vencerá em'} ${expirationDate.toLocaleDateString('pt-BR')}.`,
               '/documentacao'
             );
-            useDocumentStore.getState().updateDocument(doc.id, { lastNotifiedIndex: notifyKey });
+            docStore.updateDocument(doc.id, { lastNotifiedIndex: notifyKey });
           }
         }
       });
@@ -137,7 +142,7 @@ const AppContent = () => {
     checkDocs(); // initial check
     const docInterval = setInterval(checkDocs, CHECK_INTERVAL);
     return () => clearInterval(docInterval);
-  }, [documents, addNotification]);
+  }, []); // Run only once
 
   return (
     <Routes>

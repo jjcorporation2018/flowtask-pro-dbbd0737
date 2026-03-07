@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { useAuditStore } from './audit-store';
+import { useAuthStore } from './auth-store';
 
 import {
     EntryType,
@@ -85,40 +87,75 @@ export const useAccountingStore = create<AccountingState>()(
             exports: [],
             settings: {},
 
-            addEntry: (entry) =>
-                set((state) => ({
+            addEntry: (entry) => set((state) => {
+                const newId = crypto.randomUUID();
+                const currentUser = useAuthStore.getState().currentUser;
+
+                if (currentUser) {
+                    useAuditStore.getState().addLog({
+                        userId: currentUser.id,
+                        userName: currentUser.name,
+                        action: 'CRIAR',
+                        entity: 'LANÇAMENTO',
+                        details: `Criou lançamento "${entry.description}" no valor de ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(entry.amount)}`
+                    });
+                }
+
+                return {
                     entries: [
                         ...state.entries,
                         {
                             ...entry,
-                            id: crypto.randomUUID(),
+                            id: newId,
                             createdAt: new Date().toISOString(),
                             updatedAt: new Date().toISOString(),
-                        },
-                    ],
-                })),
+                        }
+                    ]
+                };
+            }),
 
-            updateEntry: (id, updatedEntry) =>
-                set((state) => ({
+            updateEntry: (id, updatedEntry) => set((state) => {
+                const currentUser = useAuthStore.getState().currentUser;
+                const oldEntry = state.entries.find(e => e.id === id);
+
+                if (currentUser && oldEntry) {
+                    useAuditStore.getState().addLog({
+                        userId: currentUser.id,
+                        userName: currentUser.name,
+                        action: 'EDITAR',
+                        entity: 'LANÇAMENTO',
+                        details: `Modificou dados do lançamento "${oldEntry.description}"`
+                    });
+                }
+
+                return {
                     entries: state.entries.map((entry) =>
-                        entry.id === id
-                            ? { ...entry, ...updatedEntry, updatedAt: new Date().toISOString() }
-                            : entry
+                        entry.id === id ? { ...entry, ...updatedEntry, updatedAt: new Date().toISOString() } : entry
                     ),
-                })),
+                };
+            }),
 
-            deleteEntry: (id) =>
-                set((state) => {
-                    const entryToDelete = state.entries.find((e) => e.id === id);
-                    if (!entryToDelete) return state;
+            deleteEntry: (id) => set((state) => {
+                const currentUser = useAuthStore.getState().currentUser;
+                const targetEntry = state.entries.find(e => e.id === id);
 
-                    // Soft Delete
-                    return {
-                        entries: state.entries.map((entry) =>
-                            entry.id === id ? { ...entry, trashedAt: new Date().toISOString() } : entry
-                        )
-                    };
-                }),
+                if (currentUser && targetEntry) {
+                    useAuditStore.getState().addLog({
+                        userId: currentUser.id,
+                        userName: currentUser.name,
+                        action: 'EXCLUIR',
+                        entity: 'LANÇAMENTO',
+                        details: `Deletou o lançamento "${targetEntry.description}"`
+                    });
+                }
+
+                // Soft Delete
+                return {
+                    entries: state.entries.map((entry) =>
+                        entry.id === id ? { ...entry, trashedAt: new Date().toISOString() } : entry
+                    )
+                };
+            }),
 
             restoreEntry: (id) =>
                 set((state) => ({

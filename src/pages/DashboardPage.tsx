@@ -8,9 +8,19 @@ import { motion } from 'framer-motion';
 import { useState, useMemo } from 'react';
 
 const Dashboard = () => {
-  const { folders, boards, lists, cards, labels, companies, budgets, mainCompanies } = useKanbanStore();
-  const { documents } = useDocumentStore();
-  const { entries, taxObligations } = useAccountingStore();
+  const folders = useKanbanStore(state => state.folders);
+  const boards = useKanbanStore(state => state.boards);
+  const lists = useKanbanStore(state => state.lists);
+  const cards = useKanbanStore(state => state.cards);
+  const labels = useKanbanStore(state => state.labels);
+  const companies = useKanbanStore(state => state.companies);
+  const budgets = useKanbanStore(state => state.budgets);
+  const mainCompanies = useKanbanStore(state => state.mainCompanies);
+
+  const documents = useDocumentStore(state => state.documents);
+
+  const entries = useAccountingStore(state => state.entries);
+  const taxObligations = useAccountingStore(state => state.taxObligations);
 
   // Filters
   const [filterBoard, setFilterBoard] = useState<string>('all');

@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Folder, Board, KanbanList, Card, Label, DEFAULT_LABELS, ChecklistItem, Comment, Attachment, WorkspaceMember, Notification, Company, Route, Budget, MainCompanyProfile } from '@/types/kanban';
+import { useAuditStore } from './audit-store';
+import { useAuthStore } from './auth-store';
 
 const uid = () => crypto.randomUUID();
 
@@ -201,15 +203,40 @@ export const useKanbanStore = create<KanbanState>()(
       clearNotifications: () => set({ notifications: [] }),
 
       // Companies
-      addCompany: (companyData) => set(s => ({
-        companies: [{ ...companyData, id: uid(), createdAt: new Date().toISOString() }, ...s.companies]
-      })),
+      addCompany: (companyData) => set(s => {
+        const currentUser = useAuthStore.getState().currentUser;
+        if (currentUser) {
+          useAuditStore.getState().addLog({
+            userId: currentUser.id,
+            userName: currentUser.name,
+            action: 'CRIAR',
+            entity: 'EMPRESA',
+            details: `Cadastrou o contato comercial "${companyData.name}"`
+          });
+        }
+        return {
+          companies: [{ ...companyData, id: uid(), createdAt: new Date().toISOString() }, ...s.companies]
+        };
+      }),
       removeCompany: (id) => set(s => ({
         companies: s.companies.filter(c => c.id !== id)
       })),
-      updateCompany: (id, data) => set(s => ({
-        companies: s.companies.map(c => c.id === id ? { ...c, ...data } : c)
-      })),
+      updateCompany: (id, data) => set(s => {
+        const currentUser = useAuthStore.getState().currentUser;
+        const target = s.companies.find(c => c.id === id);
+        if (currentUser && target) {
+          useAuditStore.getState().addLog({
+            userId: currentUser.id,
+            userName: currentUser.name,
+            action: 'EDITAR',
+            entity: 'EMPRESA',
+            details: `Atualizou os dados de negócio de "${target.name}"`
+          });
+        }
+        return {
+          companies: s.companies.map(c => c.id === id ? { ...c, ...data } : c)
+        };
+      }),
       restoreCompany: (id) => set(s => ({
         companies: s.companies.map(c => c.id === id ? { ...c, trashed: false, trashedAt: undefined } : c)
       })),
@@ -235,12 +262,47 @@ export const useKanbanStore = create<KanbanState>()(
       })),
 
       // Budgets
-      addBudget: (budgetData) => set(s => ({
-        budgets: [{ ...budgetData, id: uid(), createdAt: new Date().toISOString() }, ...s.budgets]
-      })),
-      updateBudget: (id, data) => set(s => ({
-        budgets: s.budgets.map(b => b.id === id ? { ...b, ...data } : b)
-      })),
+      addBudget: (budgetData) => set(s => {
+        const currentUser = useAuthStore.getState().currentUser;
+        if (currentUser) {
+          useAuditStore.getState().addLog({
+            userId: currentUser.id,
+            userName: currentUser.name,
+            action: 'CRIAR',
+            entity: 'ORÇAMENTO',
+            details: `Criou o orçamento "${budgetData.title}"`
+          });
+        }
+        return {
+          budgets: [{ ...budgetData, id: uid(), createdAt: new Date().toISOString() }, ...s.budgets]
+        };
+      }),
+      updateBudget: (id, data) => set(s => {
+        const currentUser = useAuthStore.getState().currentUser;
+        const target = s.budgets.find(b => b.id === id);
+
+        if (currentUser && target) {
+          let logMsg = `Editou o orçamento "${target.title}"`;
+          let logAction: 'EDITAR' | 'STATUS' = 'EDITAR';
+
+          if (data.status && data.status !== target.status) {
+            logMsg = `Marcou o orçamento "${target.title}" como ${data.status.toUpperCase()}`;
+            logAction = 'STATUS';
+          }
+
+          useAuditStore.getState().addLog({
+            userId: currentUser.id,
+            userName: currentUser.name,
+            action: logAction,
+            entity: 'ORÇAMENTO',
+            details: logMsg
+          });
+        }
+
+        return {
+          budgets: s.budgets.map(b => b.id === id ? { ...b, ...data } : b)
+        };
+      }),
       deleteBudget: (id) => set(s => ({
         budgets: s.budgets.map(b => b.id === id ? { ...b, trashed: true, trashedAt: new Date().toISOString() } : b)
       })),
@@ -337,6 +399,19 @@ export const useKanbanStore = create<KanbanState>()(
 
       // Cards
       addCard: (listId, title) => set(s => {
+        const currentUser = useAuthStore.getState().currentUser;
+        const targetList = s.lists.find(l => l.id === listId);
+
+        if (currentUser && targetList) {
+          useAuditStore.getState().addLog({
+            userId: currentUser.id,
+            userName: currentUser.name,
+            action: 'CRIAR',
+            entity: 'CARTÃO',
+            details: `Criou cartão "${title}" na lista "${targetList.title}"`
+          });
+        }
+
         const maxPos = Math.max(0, ...s.cards.filter(c => c.listId === listId).map(c => c.position));
         return {
           cards: [...s.cards, {
@@ -348,6 +423,32 @@ export const useKanbanStore = create<KanbanState>()(
         };
       }),
       updateCard: (id, data) => set(s => {
+        const currentUser = useAuthStore.getState().currentUser;
+        const targetCard = s.cards.find(c => c.id === id);
+
+        if (currentUser && targetCard) {
+          let details = `Atualizou dados do cartão "${targetCard.title}"`;
+
+          // Do not log timer tick updates to prevent spamming the logs
+          if (data.trashed !== undefined) {
+            useAuditStore.getState().addLog({
+              userId: currentUser.id,
+              userName: currentUser.name,
+              action: data.trashed ? 'EXCLUIR' : 'EDITAR',
+              entity: 'CARTÃO',
+              details: data.trashed ? `Moveu o cartão "${targetCard.title}" para a Lixeira` : `Restaurou o cartão "${targetCard.title}" da Lixeira`
+            });
+          } else if (!data.timeEntries) {
+            useAuditStore.getState().addLog({
+              userId: currentUser.id,
+              userName: currentUser.name,
+              action: 'EDITAR',
+              entity: 'CARTÃO',
+              details
+            });
+          }
+        }
+
         let updatedBudgets = s.budgets;
 
         if (data.trashed !== undefined || data.archived !== undefined) {
@@ -382,9 +483,28 @@ export const useKanbanStore = create<KanbanState>()(
         cards: s.cards.filter(c => c.id !== id),
         budgets: s.budgets.filter(b => b.cardId !== id)
       })),
-      moveCard: (cardId, toListId, newPosition) => set(s => ({
-        cards: s.cards.map(c => c.id === cardId ? { ...c, listId: toListId, position: newPosition } : c)
-      })),
+      moveCard: (cardId, toListId, newPosition) => set(s => {
+        const currentUser = useAuthStore.getState().currentUser;
+        const targetCard = s.cards.find(c => c.id === cardId);
+        const targetList = s.lists.find(l => l.id === toListId);
+
+        if (currentUser && targetCard && targetList) {
+          // Only log if the list actually changed, otherwise it's just a visual reorder within the same list
+          if (targetCard.listId !== toListId) {
+            useAuditStore.getState().addLog({
+              userId: currentUser.id,
+              userName: currentUser.name,
+              action: 'MOVER',
+              entity: 'CARTÃO',
+              details: `Moveu "${targetCard.title}" para a fase/lista "${targetList.title}"`
+            });
+          }
+        }
+
+        return {
+          cards: s.cards.map(c => c.id === cardId ? { ...c, listId: toListId, position: newPosition } : c)
+        }
+      }),
       reorderCards: (listId, cardIds) => set(s => ({
         cards: s.cards.map(c => {
           if (c.listId !== listId) return c;

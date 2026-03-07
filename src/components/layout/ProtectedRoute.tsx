@@ -29,13 +29,13 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     }
 
     return (
-        <div className="h-screen flex flex-col overflow-hidden">
+        <div className="h-screen flex flex-col overflow-hidden bg-background">
             <AppHeader />
             <div className="flex flex-1 overflow-hidden">
                 <AppSidebar />
-                <div className="flex-1 overflow-auto bg-background relative">
+                <main className="flex-1 overflow-y-auto overflow-x-hidden relative custom-scrollbar">
                     {children}
-                </div>
+                </main>
             </div>
         </div>
     );

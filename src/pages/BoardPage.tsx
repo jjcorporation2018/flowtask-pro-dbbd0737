@@ -1,7 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { useKanbanStore } from '@/store/kanban-store';
 import { Plus, ArrowLeft, Undo2, Archive as ArchiveIcon, Trash2, Clock, User, Star } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import KanbanListComponent from '@/components/board/KanbanList';
 import CardDetailPanel from '@/components/board/CardDetailPanel';
@@ -15,18 +15,39 @@ import { toast } from 'sonner';
 
 const BoardPage = () => {
   const { boardId } = useParams<{ boardId: string }>();
-  const {
-    boards, lists, folders, cards, members, uiZoom,
-    addList, updateList, deleteList, reorderLists, moveCard, reorderCards, updateCard, deleteCard, updateBoard,
-    undoAction, setUndoAction, executeUndo, clearUndoAction,
-    boardPreferences, setBoardPreference, isDark
-  } = useKanbanStore();
-  const board = boards.find(b => b.id === boardId);
-  const folder = board ? folders.find(f => f.id === board.folderId) : null;
-  const boardLists = lists
+  const boards = useKanbanStore(state => state.boards);
+  const lists = useKanbanStore(state => state.lists);
+  const folders = useKanbanStore(state => state.folders);
+  const cards = useKanbanStore(state => state.cards);
+  const members = useKanbanStore(state => state.members);
+  const uiZoom = useKanbanStore(state => state.uiZoom);
+
+  const addList = useKanbanStore(state => state.addList);
+  const updateList = useKanbanStore(state => state.updateList);
+  const deleteList = useKanbanStore(state => state.deleteList);
+  const reorderLists = useKanbanStore(state => state.reorderLists);
+  const moveCard = useKanbanStore(state => state.moveCard);
+  const reorderCards = useKanbanStore(state => state.reorderCards);
+  const updateCard = useKanbanStore(state => state.updateCard);
+  const deleteCard = useKanbanStore(state => state.deleteCard);
+  const updateBoard = useKanbanStore(state => state.updateBoard);
+
+  const undoAction = useKanbanStore(state => state.undoAction);
+  const setUndoAction = useKanbanStore(state => state.setUndoAction);
+  const executeUndo = useKanbanStore(state => state.executeUndo);
+  const clearUndoAction = useKanbanStore(state => state.clearUndoAction);
+
+  const boardPreferences = useKanbanStore(state => state.boardPreferences);
+  const setBoardPreference = useKanbanStore(state => state.setBoardPreference);
+  const isDark = useKanbanStore(state => state.isDark);
+
+  const board = useMemo(() => boards.find(b => b.id === boardId), [boards, boardId]);
+  const folder = useMemo(() => board ? folders.find(f => f.id === board.folderId) : null, [board, folders]);
+  const boardLists = useMemo(() => lists
     .filter(l => l.boardId === boardId)
-    .sort((a, b) => a.position - b.position);
-  const { currentUser } = useAuthStore();
+    .sort((a, b) => a.position - b.position), [lists, boardId]);
+
+  const currentUser = useAuthStore(state => state.currentUser);
 
   const [addingList, setAddingList] = useState(false);
   const [newListTitle, setNewListTitle] = useState('');
@@ -252,14 +273,18 @@ const BoardPage = () => {
           <Droppable droppableId="board" type="LIST" direction="horizontal">
             {(provided) => (
               <div ref={provided.innerRef} {...provided.droppableProps}
-                className="flex-1 flex gap-3 overflow-x-auto overflow-y-hidden p-3 pb-6 items-start custom-scrollbar h-full min-h-0">
+                className="flex-1 flex gap-3 overflow-x-auto overflow-y-hidden p-3 pb-4 items-start custom-scrollbar min-h-0 w-full">
                 {boardLists.map((list, index) => (
                   <Draggable key={list.id} draggableId={list.id} index={index}>
                     {(provided, snapshot) => {
                       const child = (
                         <div ref={provided.innerRef} {...provided.draggableProps}
-                          className={`shrink-0 transition-shadow max-h-full flex flex-col ${snapshot.isDragging ? 'shadow-xl rotate-2' : ''}`}
-                          style={provided.draggableProps.style}
+                          className={`shrink-0 transition-shadow flex flex-col ${snapshot.isDragging ? 'shadow-xl rotate-2' : ''}`}
+                          style={{
+                            ...provided.draggableProps.style,
+                            maxHeight: snapshot.isDragging ? undefined : '100%',
+                            height: snapshot.isDragging ? undefined : '100%'
+                          }}
                         >
                           <KanbanListComponent list={list} dragHandleProps={provided.dragHandleProps} onCardClick={setSelectedCardId} />
                         </div>
