@@ -1,6 +1,7 @@
 import { useKanbanStore } from '@/store/kanban-store';
 import { useAccountingStore } from '@/store/accounting-store';
 import { useDocumentStore } from '@/store/document-store';
+import { useAuthStore } from '@/store/auth-store';
 import { BarChart3, CheckCircle2, Clock, AlertTriangle, TrendingUp, FolderOpen, Filter, Tag, Star, Building2, Truck, Briefcase, BellRing, CalendarDays, FileText, PiggyBank, Calculator, AlertCircle, Info } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { Link } from 'react-router-dom';
@@ -8,6 +9,9 @@ import { motion } from 'framer-motion';
 import { useState, useMemo } from 'react';
 
 const Dashboard = () => {
+  const { currentUser } = useAuthStore();
+  const isAdmin = currentUser?.role === 'ADMIN';
+
   const folders = useKanbanStore(state => state.folders);
   const boards = useKanbanStore(state => state.boards);
   const lists = useKanbanStore(state => state.lists);
@@ -30,7 +34,7 @@ const Dashboard = () => {
   const activeFolders = folders.filter(f => !f.archived && !f.trashed);
   const activeBoards = boards.filter(b => !b.archived && !b.trashed);
   const activeLists = lists.filter(l => !l.archived && !l.trashed);
-  const activeCards = cards.filter(c => !c.archived && !c.trashed);
+  const activeCards = cards.filter(c => !c.archived && !c.trashed && c.assignee === currentUser?.id);
 
   const filteredCards = useMemo(() => {
     let result = activeCards;
@@ -79,7 +83,7 @@ const Dashboard = () => {
   }, [filteredCards, activeLists]);
 
   const stats = [
-    { label: 'Total de Tarefas', value: totalCards, icon: BarChart3, color: 'text-primary' },
+    { label: 'Minhas Tarefas', value: totalCards, icon: BarChart3, color: 'text-primary' },
     { label: 'Concluídas', value: completedCards, icon: CheckCircle2, color: 'text-label-green' },
     { label: 'Atrasadas', value: overdueCards, icon: AlertTriangle, color: 'text-label-red' },
     { label: 'Tempo Médio', value: `${avgTimeMinutes}min`, icon: Clock, color: 'text-accent' },
@@ -132,7 +136,8 @@ const Dashboard = () => {
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-6xl mx-auto">
-        <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
+        <h1 className="text-2xl font-bold mb-1">Meu Espaço</h1>
+        <p className="text-muted-foreground text-sm mb-4">Bem-vindo(a), {currentUser?.name?.split(' ')[0] || 'Usuário'}. Aqui está o resumo das suas atividades.</p>
 
         {/* Filters */}
         <div className="flex flex-wrap gap-3 mb-6 p-3 bg-card rounded-lg border border-border">

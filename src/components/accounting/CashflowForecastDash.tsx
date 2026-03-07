@@ -1,11 +1,12 @@
 import { useState, useMemo } from 'react';
 import { useAccountingStore } from '@/store/accounting-store';
 import { useKanbanStore } from '@/store/kanban-store';
-import { CreditCard, TrendingUp, TrendingDown, DollarSign, Wallet, ArrowRight, Filter, Settings, Calculator, Activity } from 'lucide-react';
+import { CreditCard, TrendingUp, TrendingDown, DollarSign, Wallet, ArrowRight, Filter, Settings, Calculator, Activity, Calculator as CalcIcon, Download } from 'lucide-react';
+import { format } from 'date-fns';
 
 export const CashflowForecastDash = () => {
     const { entries, bankAccounts, updateBankAccount } = useAccountingStore();
-    const { mainCompanies } = useKanbanStore();
+    const { mainCompanies, budgets } = useKanbanStore();
     const activeCompany = mainCompanies.find(c => c.isDefault) || mainCompanies[0];
 
     const [forecastDays, setForecastDays] = useState<number>(30); // Dias à frente
@@ -40,7 +41,47 @@ export const CashflowForecastDash = () => {
         }
     });
 
+    // Incorporate Pending/Approved Budgets
+    const pendingBudgets = budgets.filter(b =>
+        !b.trashed &&
+        (b.status === 'Aguardando' || b.status === 'Aprovado')
+    );
+
+    let budgetRevenue = 0;
+    pendingBudgets.forEach(budget => {
+        if (!budget.items || budget.items.length === 0) return;
+        const winningQuotation = [...budget.items].sort((a, b) => (a.totalPrice || 0) - (b.totalPrice || 0))[0];
+        if (winningQuotation && winningQuotation.totalPrice) {
+            budgetRevenue += winningQuotation.totalPrice;
+        }
+    });
+
+    futureRevenue += budgetRevenue;
+
     const projectedBalance = currentActualBalance + futureRevenue - futureExpense;
+
+    const handleExportCSV = () => {
+        const headers = ['Métrica', 'Valor (R$)'];
+
+        const rows = [
+            ['Dias de Projeção', `${forecastDays}`],
+            ['Saldo Atual (Bancos Visíveis)', currentActualBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })],
+            [`A Receber (+ ${forecastDays}d)`, futureRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })],
+            [`Tíquetes Incluídos na Receita`, budgetRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })],
+            [`A Pagar (+ ${forecastDays}d)`, futureExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })],
+            ['Saldo Previsto Final', projectedBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })]
+        ];
+
+        const csvContent = [headers.join(','), ...rows.map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(','))].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `simulacao_caixa_${format(new Date(), 'dd_MM_yyyy')}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
 
     return (
         <div className="flex-1 bg-background text-foreground overflow-hidden flex flex-col">
@@ -54,6 +95,14 @@ export const CashflowForecastDash = () => {
                         {activeCompany.nomeFantasia || activeCompany.razaoSocial}
                     </span>
                 )}
+                <div className="ml-auto">
+                    <button
+                        onClick={handleExportCSV}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-secondary hover:bg-secondary/80 text-foreground text-xs font-bold rounded-md transition-colors border border-border"
+                    >
+                        <Download className="h-3.5 w-3.5" /> Exportar Projeção (CSV)
+                    </button>
+                </div>
             </div>
 
             <div className="flex-1 overflow-auto p-4 sm:p-6 custom-scrollbar">
@@ -105,7 +154,7 @@ export const CashflowForecastDash = () => {
                                 </span>
                             </div>
 
-                            <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-xl flex flex-col justify-center">
+                            <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-xl flex flex-col justify-center relative group">
                                 <div className="flex items-center gap-2 mb-1 text-emerald-500">
                                     <TrendingUp className="h-4 w-4" />
                                     <span className="text-xs font-semibold uppercase">A Receber (+ {forecastDays}d)</span>
@@ -113,6 +162,12 @@ export const CashflowForecastDash = () => {
                                 <span className="text-2xl font-bold text-emerald-500">
                                     + R$ {futureRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                 </span>
+                                {budgetRevenue > 0 && (
+                                    <div className="text-[10px] text-emerald-500/70 mt-1 flex items-center gap-1 font-medium bg-emerald-500/10 w-fit px-1.5 py-0.5 rounded cursor-help" title="Orçamentos Aguardando Reposta ou Aprovados em breve na plataforma de Kanban">
+                                        <CalcIcon className="w-3 h-3" />
+                                        Inclui R$ {budgetRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} de Orçamentos
+                                    </div>
+                                )}
                             </div>
 
                             <div className="bg-rose-500/10 border border-rose-500/20 p-4 rounded-xl flex flex-col justify-center">

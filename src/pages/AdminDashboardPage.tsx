@@ -6,6 +6,7 @@ import {
     Save, Plus, ShieldCheck
 } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
+import { AuditMetricsDash } from './AuditMetricsDash';
 
 export default function AdminDashboardPage() {
     const { currentUser, systemUsers, addUser, updateUser, removeUser } = useAuthStore();
@@ -90,8 +91,8 @@ export default function AdminDashboardPage() {
     };
 
     return (
-        <div className="h-full flex flex-col pt-6 px-8 max-w-7xl mx-auto animate-in fade-in duration-300 relative overflow-hidden">
-            <div className="flex justify-between items-end mb-8 relative z-10">
+        <div className="h-full flex flex-col pt-6 px-8 max-w-7xl mx-auto animate-in fade-in duration-300 relative overflow-y-auto custom-scrollbar pb-10">
+            <div className="flex justify-between items-end mb-8 relative z-10 shrink-0">
                 <div>
                     <h1 className="text-3xl font-bold flex items-center gap-3">
                         <ShieldCheck className="w-8 h-8 text-primary" />
@@ -109,6 +110,10 @@ export default function AdminDashboardPage() {
                         <Plus className="w-4 h-4" /> Cadastrar E-mail Autorizado
                     </button>
                 )}
+            </div>
+
+            <div className="mb-10">
+                <AuditMetricsDash />
             </div>
 
             {isAdding && (
@@ -202,8 +207,8 @@ export default function AdminDashboardPage() {
                 </div>
             )}
 
-            <div className="bg-neutral-900 border border-border rounded-xl flex-1 overflow-hidden flex flex-col relative z-10 shadow-lg">
-                <div className="overflow-x-auto">
+            <div className="bg-neutral-900 border border-border rounded-xl flex-1 flex flex-col relative z-10 shadow-lg mt-8">
+                <div className="overflow-x-auto custom-scrollbar">
                     <table className="w-full text-left text-sm whitespace-nowrap">
                         <thead className="bg-muted text-muted-foreground uppercase text-[10px] font-bold tracking-wider relative border-b border-border">
                             <tr>
@@ -240,8 +245,8 @@ export default function AdminDashboardPage() {
                                                 onClick={() => toggleRole(user.id)}
                                                 disabled={isMe}
                                                 className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${user.role === 'ADMIN'
-                                                        ? 'bg-primary/20 text-primary hover:bg-primary/30'
-                                                        : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
+                                                    ? 'bg-primary/20 text-primary hover:bg-primary/30'
+                                                    : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
                                                     } ${isMe ? 'opacity-50 cursor-not-allowed' : ''}`}
                                             >
                                                 <span className="flex items-center gap-1.5 justify-center">
@@ -279,8 +284,8 @@ export default function AdminDashboardPage() {
                                                 onClick={() => toggleStatus(user.id)}
                                                 disabled={isMe}
                                                 className={`text-xs font-bold px-2 py-1 rounded transition-colors ${user.status === 'active'
-                                                        ? 'text-emerald-500 hover:bg-emerald-500/10'
-                                                        : 'text-destructive hover:bg-destructive/10'
+                                                    ? 'text-emerald-500 hover:bg-emerald-500/10'
+                                                    : 'text-destructive hover:bg-destructive/10'
                                                     } ${isMe ? 'opacity-50 cursor-not-allowed' : ''}`}
                                             >
                                                 {user.status === 'active' ? 'Ativo' : 'Desativado'}

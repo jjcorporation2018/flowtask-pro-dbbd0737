@@ -2,8 +2,11 @@ import { useState, useEffect } from 'react';
 import { useEssentialDocumentStore, EssentialDocumentModel } from '@/store/essential-document-store';
 import { Plus, Search, FileText, Trash2, Edit } from 'lucide-react';
 import EssentialDocumentModelForm from '@/components/documentation/EssentialDocumentModelForm';
+import { useAuthStore } from '@/store/auth-store';
 
 const EssentialDocumentModelsPage = () => {
+    const { currentUser } = useAuthStore();
+    const canEdit = currentUser?.permissions?.canEdit ?? false;
     const { models, trashModel, initializeDefaultModels } = useEssentialDocumentStore();
     const [searchQuery, setSearchQuery] = useState('');
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -41,13 +44,15 @@ const EssentialDocumentModelsPage = () => {
                     </h1>
                     <p className="text-sm text-muted-foreground mt-1">Gerencie e acesse modelos recorrentes para licitações e contratos.</p>
                 </div>
-                <button
-                    onClick={() => setIsFormOpen(true)}
-                    className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded font-medium hover:bg-primary/90 transition-colors shadow-sm"
-                >
-                    <Plus className="h-4 w-4" />
-                    Novo Modelo
-                </button>
+                {canEdit && (
+                    <button
+                        onClick={() => setIsFormOpen(true)}
+                        className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded font-medium hover:bg-primary/90 transition-colors shadow-sm"
+                    >
+                        <Plus className="h-4 w-4" />
+                        Novo Modelo
+                    </button>
+                )}
             </div>
 
             <div className="flex-1 overflow-auto p-12 custom-scrollbar">
@@ -122,24 +127,28 @@ const EssentialDocumentModelsPage = () => {
                                                             ))
                                                         )}
                                                     </div>
-                                                    <button
-                                                        onClick={() => handleEdit(model)}
-                                                        className="p-1.5 text-muted-foreground hover:text-accent hover:bg-accent/10 rounded transition-colors"
-                                                        title="Editar Modelo"
-                                                    >
-                                                        <Edit className="h-4 w-4" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => {
-                                                            if (window.confirm('Mover este modelo para a lixeira?')) {
-                                                                trashModel(model.id);
-                                                            }
-                                                        }}
-                                                        className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded transition-colors"
-                                                        title="Excluir Modelo"
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </button>
+                                                    {canEdit && (
+                                                        <>
+                                                            <button
+                                                                onClick={() => handleEdit(model)}
+                                                                className="p-1.5 text-muted-foreground hover:text-accent hover:bg-accent/10 rounded transition-colors"
+                                                                title="Editar Modelo"
+                                                            >
+                                                                <Edit className="h-4 w-4" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    if (window.confirm('Mover este modelo para a lixeira?')) {
+                                                                        trashModel(model.id);
+                                                                    }
+                                                                }}
+                                                                className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded transition-colors"
+                                                                title="Excluir Modelo"
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </button>
+                                                        </>
+                                                    )}
                                                 </td>
                                             </tr>
                                         ))

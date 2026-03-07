@@ -25,6 +25,14 @@ export interface QuotationSubItem {
   id: string;
   description: string;
   quantity: number;
+  discountValue?: number;
+  // New fields for tracking linkage with Kanban cards
+  linkedKanbanCardId?: string; // Linked company (supplier) specific to this quote
+  transporterId?: string; // Linked company (transporter) specific to this quote
+  validity?: string; // e.g., "15 dias"
+  notes?: string;
+
+  // Fase 3: Favoritos e Avaliações de Empresas
   unitPrice: number;
   totalPrice: number;
 }
@@ -98,6 +106,7 @@ export interface Budget {
   id: string;
   title: string;
   type: BudgetType;
+  userId?: string;
   status: BudgetStatus;
   cardId?: string; // Linked kanban card
   items: BudgetItem[]; // Now called "Cotações"
@@ -170,6 +179,8 @@ export interface Notification {
   read: boolean;
   createdAt: string;
   link?: string;
+  type?: 'info' | 'success' | 'warning';
+  userId?: string;
 }
 
 export interface MainCompanyProfile {

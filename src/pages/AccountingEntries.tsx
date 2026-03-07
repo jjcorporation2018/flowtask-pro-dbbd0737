@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react';
 import { useAccountingStore } from '@/store/accounting-store';
 import { useKanbanStore } from '@/store/kanban-store';
-import { ArrowUpRight, ArrowDownRight, Edit, Trash2, ArrowLeft, Search, Filter, Calendar, Paperclip, Plus, ChevronDown } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Edit, Trash2, ArrowLeft, Search, Filter, Calendar, Paperclip, Plus, ChevronDown, CalendarClock } from 'lucide-react';
 import EntryFormModal from '@/components/accounting/EntryFormModal';
+import RecurringExpensesModal from '@/components/accounting/RecurringExpensesModal';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '@/store/auth-store';
 
@@ -17,6 +18,7 @@ const AccountingEntries = () => {
     const currentUser = useAuthStore(state => state.currentUser);
 
     const [modalOpen, setModalOpen] = useState(false);
+    const [recurringModalOpen, setRecurringModalOpen] = useState(false);
     const [modalType, setModalType] = useState<'revenue' | 'expense'>('revenue');
     const [entryToEdit, setEntryToEdit] = useState<string | undefined>(undefined);
     const [searchQuery, setSearchQuery] = useState('');
@@ -99,6 +101,13 @@ const AccountingEntries = () => {
                             {/* Desktop Buttons */}
                             <div className="hidden sm:flex gap-2">
                                 <button
+                                    onClick={() => setRecurringModalOpen(true)}
+                                    disabled={currentUser?.role !== 'ADMIN' && !currentUser?.permissions?.canEdit}
+                                    className="px-4 py-2 bg-secondary text-foreground rounded-md text-sm font-bold hover:bg-secondary/80 transition-colors flex items-center justify-center gap-2 border border-border shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <CalendarClock className="h-4 w-4" /> Despesas Fixas
+                                </button>
+                                <button
                                     onClick={() => { setModalType('revenue'); setEntryToEdit(undefined); setModalOpen(true); }}
                                     disabled={currentUser?.role !== 'ADMIN' && !currentUser?.permissions?.canEdit}
                                     className="px-4 py-2 bg-emerald-500 text-white rounded-md text-sm font-bold hover:bg-emerald-600 transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
@@ -128,6 +137,12 @@ const AccountingEntries = () => {
                                     <>
                                         <div className="fixed inset-0 z-30" onClick={() => setShowMobileActions(false)} />
                                         <div className="absolute top-full left-0 right-0 mt-2 z-40 bg-card border border-border rounded-lg shadow-xl overflow-hidden flex flex-col animate-in slide-in-from-top-2">
+                                            <button
+                                                onClick={() => { setRecurringModalOpen(true); setShowMobileActions(false); }}
+                                                className="px-4 py-3 text-sm font-bold text-foreground hover:bg-muted flex items-center gap-2 border-b border-border/50 text-left"
+                                            >
+                                                <CalendarClock className="h-4 w-4" /> Gerenciar Despesas Fixas
+                                            </button>
                                             <button
                                                 onClick={() => { setModalType('revenue'); setEntryToEdit(undefined); setModalOpen(true); setShowMobileActions(false); }}
                                                 className="px-4 py-3 text-sm font-bold text-emerald-500 hover:bg-muted flex items-center gap-2 border-b border-border/50 text-left"
@@ -304,6 +319,11 @@ const AccountingEntries = () => {
                 }}
                 type={modalType}
                 existingEntryId={entryToEdit}
+            />
+
+            <RecurringExpensesModal
+                open={recurringModalOpen}
+                onOpenChange={setRecurringModalOpen}
             />
         </div>
     );

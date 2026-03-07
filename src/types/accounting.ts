@@ -45,6 +45,18 @@ export interface AccountingEntry {
 
 // Novos Tipos para o ERP
 
+export interface RecurringExpense {
+    id: string;
+    companyId: string;
+    description: string;
+    amount: number;
+    categoryId: string;
+    dayOfMonth: number; // 1-31
+    active: boolean;
+    lastGeneratedDate?: string; // To avoid generating twice in the same month
+    createdAt: string;
+}
+
 export type InvoiceType = 'service' | 'product';
 export type InvoiceStatus = 'draft' | 'issued' | 'cancelled';
 

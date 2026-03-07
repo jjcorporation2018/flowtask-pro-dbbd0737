@@ -5,7 +5,11 @@ import { format } from 'date-fns';
 import DocumentForm from '@/components/documentation/DocumentForm';
 import DocumentCalendarView from '@/components/documentation/DocumentCalendarView';
 
+import { useAuthStore } from '@/store/auth-store';
+
 const DocumentationPage = () => {
+    const { currentUser } = useAuthStore();
+    const canEdit = currentUser?.permissions?.canEdit ?? false;
     const { documents, trashDocument } = useDocumentStore();
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedType, setSelectedType] = useState('Todos');
@@ -66,13 +70,15 @@ const DocumentationPage = () => {
                     </h1>
                     <p className="text-sm text-muted-foreground mt-1">Gerencie alvarás, contratos e certidões com controle de vencimento.</p>
                 </div>
-                <button
-                    onClick={() => setIsFormOpen(true)}
-                    className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded font-medium hover:bg-primary/90 transition-colors shadow-sm"
-                >
-                    <Plus className="h-4 w-4" />
-                    Novo Documento
-                </button>
+                {canEdit && (
+                    <button
+                        onClick={() => setIsFormOpen(true)}
+                        className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded font-medium hover:bg-primary/90 transition-colors shadow-sm"
+                    >
+                        <Plus className="h-4 w-4" />
+                        Novo Documento
+                    </button>
+                )}
             </div>
 
             <div className="flex-1 overflow-auto p-12 custom-scrollbar">
@@ -225,24 +231,28 @@ const DocumentationPage = () => {
                                                                 </a>
                                                             )}
                                                         </div>
-                                                        <button
-                                                            onClick={() => handleEdit(doc)}
-                                                            className="p-1.5 text-muted-foreground hover:text-accent hover:bg-accent/10 rounded transition-colors"
-                                                            title="Editar Documento"
-                                                        >
-                                                            <Edit className="h-4 w-4" />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => {
-                                                                if (window.confirm('Mover este documento para a lixeira?')) {
-                                                                    trashDocument(doc.id);
-                                                                }
-                                                            }}
-                                                            className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded transition-colors"
-                                                            title="Excluir Documento"
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </button>
+                                                        {canEdit && (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => handleEdit(doc)}
+                                                                    className="p-1.5 text-muted-foreground hover:text-accent hover:bg-accent/10 rounded transition-colors"
+                                                                    title="Editar Documento"
+                                                                >
+                                                                    <Edit className="h-4 w-4" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        if (window.confirm('Mover este documento para a lixeira?')) {
+                                                                            trashDocument(doc.id);
+                                                                        }
+                                                                    }}
+                                                                    className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded transition-colors"
+                                                                    title="Excluir Documento"
+                                                                >
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </button>
+                                                            </>
+                                                        )}
                                                     </td>
                                                 </tr>
                                             ))

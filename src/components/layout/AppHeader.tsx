@@ -1,7 +1,8 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Search, Bell, Moon, Sun, Plus, LayoutDashboard, LayoutGrid, ZoomIn, ZoomOut, Archive, Trash2, Briefcase, Truck, Calculator, Building2, FileText, PiggyBank, Menu, ChevronDown, MoreVertical } from 'lucide-react';
+import { Search, Bell, Moon, Sun, Plus, LayoutDashboard, LayoutGrid, ZoomIn, ZoomOut, Archive, Trash2, Briefcase, Truck, Calculator, Building2, FileText, PiggyBank, Menu, ChevronDown, MoreVertical, Target, Gavel } from 'lucide-react';
 import { useKanbanStore } from '@/store/kanban-store';
 import { useUserPrefsStore } from '@/store/user-prefs-store';
+import { useAuthStore } from '@/store/auth-store';
 import logo from '@/assets/logo.png';
 import { useState } from 'react';
 import GlobalArchiveViewer from './GlobalArchiveViewer';
@@ -11,8 +12,9 @@ import UserProfile from './UserProfile';
 import { AnimatePresence } from 'framer-motion';
 
 const AppHeader = () => {
-  const { folders, boards, lists, cards, companies, budgets } = useKanbanStore();
-  const { isDark, toggleTheme, uiZoom, setUiZoom, notifications, markNotificationRead, markAllNotificationsRead, clearNotifications, setMobileMenuOpen } = useUserPrefsStore();
+  const { folders, boards, lists, cards, companies, budgets, notifications, markNotificationRead, markAllNotificationsRead, clearNotifications } = useKanbanStore();
+  const { isDark, toggleTheme, uiZoom, setUiZoom, setMobileMenuOpen } = useUserPrefsStore();
+  const { currentUser } = useAuthStore();
   const location = useLocation();
   const navigate = useNavigate();
   const [searchOpen, setSearchOpen] = useState(false);
@@ -22,7 +24,10 @@ const AppHeader = () => {
   const [showGlobalArchiveViewer, setShowGlobalArchiveViewer] = useState<'archived' | 'trashed' | null>(null);
   const [showDocsArchiveViewer, setShowDocsArchiveViewer] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const unreadCount = notifications.filter(n => !n.read).length;
+
+  // Filter notifications for the current user
+  const userNotifications = notifications.filter(n => !n.userId || n.userId === currentUser?.id);
+  const unreadCount = userNotifications.filter(n => !n.read).length;
 
   const isCompanyModule = location.pathname.startsWith('/suppliers') || location.pathname.startsWith('/transporters');
   const isBudgetModule = location.pathname.startsWith('/budgets');
@@ -97,6 +102,22 @@ const AppHeader = () => {
             <span className="uppercase tracking-wider">Kunbun</span>
           </Link>
           <Link
+            to="/oportunidades"
+            className={`px-2 sm:px-3 py-1.5 rounded text-[10px] sm:text-xs font-medium transition-colors ${location.pathname.startsWith('/oportunidades') ? 'bg-primary/20 text-white' : 'hover:bg-primary/10 text-white/80 hover:text-white'
+              }`}
+          >
+            <Target className="h-3.5 w-3.5 inline mr-1" />
+            <span className="uppercase tracking-wider">Oportunidades</span>
+          </Link>
+          <Link
+            to="/licitacao"
+            className={`px-2 sm:px-3 py-1.5 rounded text-[10px] sm:text-xs font-medium transition-colors ${location.pathname.startsWith('/licitacao') ? 'bg-primary/20 text-white' : 'hover:bg-primary/10 text-white/80 hover:text-white'
+              }`}
+          >
+            <Gavel className="h-3.5 w-3.5 inline mr-1" />
+            <span className="uppercase tracking-wider">Gestor de Licitação</span>
+          </Link>
+          <Link
             to="/suppliers"
             className={`px-2 sm:px-3 py-1.5 rounded text-[10px] sm:text-xs font-medium transition-colors ${location.pathname === '/suppliers' || location.pathname.startsWith('/suppliers-list') || location.pathname.startsWith('/transporters-list') ? 'bg-primary/20 text-white' : 'hover:bg-primary/10 text-white/80 hover:text-white'
               }`}
@@ -158,6 +179,12 @@ const AppHeader = () => {
                 </Link>
                 <Link to="/kunbun" onClick={() => setShowNavDropdown(false)} className={`px-4 py-3 flex items-center gap-3 text-sm border-b border-border/50 hover:bg-muted transition-colors ${location.pathname === '/kunbun' || location.pathname.startsWith('/folder') || location.pathname.startsWith('/board') ? 'text-primary font-bold bg-primary/5' : 'text-foreground'}`}>
                   <div className="p-1.5 rounded bg-primary/10 text-primary"><LayoutGrid className="h-4 w-4" /></div> Kunbun (Projetos)
+                </Link>
+                <Link to="/oportunidades" onClick={() => setShowNavDropdown(false)} className={`px-4 py-3 flex items-center gap-3 text-sm border-b border-border/50 hover:bg-muted transition-colors ${location.pathname.startsWith('/oportunidades') ? 'text-primary font-bold bg-primary/5' : 'text-foreground'}`}>
+                  <div className="p-1.5 rounded bg-primary/10 text-primary"><Target className="h-4 w-4" /></div> Oportunidades
+                </Link>
+                <Link to="/licitacao" onClick={() => setShowNavDropdown(false)} className={`px-4 py-3 flex items-center gap-3 text-sm border-b border-border/50 hover:bg-muted transition-colors ${location.pathname.startsWith('/licitacao') ? 'text-primary font-bold bg-primary/5' : 'text-foreground'}`}>
+                  <div className="p-1.5 rounded bg-primary/10 text-primary"><Gavel className="h-4 w-4" /></div> Gestor de Licitação
                 </Link>
                 <Link to="/suppliers" onClick={() => setShowNavDropdown(false)} className={`px-4 py-3 flex items-center gap-3 text-sm border-b border-border/50 hover:bg-muted transition-colors ${location.pathname === '/suppliers' || location.pathname.startsWith('/suppliers-list') || location.pathname.startsWith('/transporters-list') ? 'text-primary font-bold bg-primary/5' : 'text-foreground'}`}>
                   <div className="p-1.5 rounded bg-primary/10 text-primary"><Briefcase className="h-4 w-4" /></div> Fornecedores/Transportadoras
@@ -430,15 +457,15 @@ const AppHeader = () => {
             <div className="p-3 border-b border-border flex items-center justify-between bg-muted/20">
               <h4 className="font-bold text-sm">Notificações</h4>
               <div className="flex gap-2">
-                <button onClick={markAllNotificationsRead} className="text-[10px] text-primary hover:underline font-medium">Ler Todas</button>
-                <button onClick={clearNotifications} className="text-[10px] text-destructive hover:underline font-medium">Limpar</button>
+                <button onClick={() => markAllNotificationsRead(currentUser?.id)} className="text-[10px] text-primary hover:underline font-medium">Ler Todas</button>
+                <button onClick={() => clearNotifications(currentUser?.id)} className="text-[10px] text-destructive hover:underline font-medium">Limpar</button>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-2">
-              {notifications.length === 0 ? (
+              {userNotifications.length === 0 ? (
                 <p className="text-xs text-muted-foreground text-center py-6">Nenhuma notificação por enquanto.</p>
               ) : (
-                notifications.map(n => (
+                userNotifications.map(n => (
                   <button key={n.id} onClick={() => { markNotificationRead(n.id); if (n.link) navigate(n.link); setShowNotifications(false); }} className={`w-full text-left p-2.5 rounded-lg transition-colors border overflow-hidden ${n.read ? 'border-transparent hover:bg-secondary' : 'border-primary/30 bg-primary/5 hover:bg-primary/10 hover:border-primary/50'}`}>
                     <div className="flex justify-between items-start gap-2 mb-1">
                       <span className={`text-[11px] font-bold truncate ${n.read ? 'text-foreground' : 'text-primary'}`}>{n.title}</span>

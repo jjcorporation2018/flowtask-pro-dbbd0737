@@ -13,7 +13,8 @@ import {
     BankTransaction,
     TaxObligation,
     AccountingSettings,
-    AccountantExport
+    AccountantExport,
+    RecurringExpense
 } from '@/types/accounting';
 
 export interface AccountingState {
@@ -61,6 +62,13 @@ export interface AccountingState {
     deleteExport: (id: string) => void;
     restoreExport: (id: string) => void;
 
+    // Recurring Expenses
+    recurringExpenses: RecurringExpense[];
+    addRecurringExpense: (expense: Omit<RecurringExpense, 'id' | 'createdAt'>) => void;
+    updateRecurringExpense: (id: string, expense: Partial<RecurringExpense>) => void;
+    deleteRecurringExpense: (id: string) => void;
+    generateRecurringExpenses: () => void; // Called on load
+
     cleanOldTrash: () => void;
 }
 
@@ -88,6 +96,7 @@ export const useAccountingStore = create<AccountingState>()(
             taxObligations: [],
             exports: [],
             settings: {},
+            recurringExpenses: [],
 
             addEntry: (entry) => set((state) => {
                 const newId = crypto.randomUUID();
@@ -454,11 +463,71 @@ export const useAccountingStore = create<AccountingState>()(
                 set((state) => ({
                     exports: state.exports.map(exp => exp.id === id ? { ...exp, trashedAt: new Date().toISOString() } : exp)
                 })),
+            restoreExport: (id) => set((state) => ({
+                exports: state.exports.map(e => e.id === id ? { ...e, trashedAt: undefined } : e)
+            })),
 
-            restoreExport: (id) =>
-                set((state) => ({
-                    exports: state.exports.map(exp => exp.id === id ? { ...exp, trashedAt: undefined } : exp)
-                })),
+            addRecurringExpense: (expense) => set((state) => ({
+                recurringExpenses: [...state.recurringExpenses, { ...expense, id: crypto.randomUUID(), createdAt: new Date().toISOString() }]
+            })),
+            updateRecurringExpense: (id, expense) => set((state) => ({
+                recurringExpenses: state.recurringExpenses.map(r => r.id === id ? { ...r, ...expense } : r)
+            })),
+            deleteRecurringExpense: (id) => set((state) => ({
+                recurringExpenses: state.recurringExpenses.filter(r => r.id !== id)
+            })),
+            generateRecurringExpenses: () => set((state) => {
+                const today = new Date();
+                const currentMonth = today.toISOString().slice(0, 7); // YYYY-MM
+                const newEntries: AccountingEntry[] = [];
+                const updatedRecurring: RecurringExpense[] = [];
+
+                let generatedCount = 0;
+
+                state.recurringExpenses.forEach(recurring => {
+                    const shouldGenerateThisMonth = recurring.active && (!recurring.lastGeneratedDate || recurring.lastGeneratedDate.slice(0, 7) !== currentMonth);
+                    const isPastDay = today.getDate() >= recurring.dayOfMonth;
+
+                    if (shouldGenerateThisMonth && isPastDay) {
+                        const dueDate = new Date(today.getFullYear(), today.getMonth(), recurring.dayOfMonth);
+                        newEntries.push({
+                            id: crypto.randomUUID(),
+                            companyId: recurring.companyId,
+                            title: `[Fixo] ${recurring.description}`,
+                            amount: recurring.amount,
+                            date: today.toISOString(),
+                            dueDate: dueDate.toISOString(),
+                            type: 'expense',
+                            categoryId: recurring.categoryId,
+                            status: 'pending',
+                            createdAt: today.toISOString(),
+                            updatedAt: today.toISOString()
+                        });
+                        updatedRecurring.push({ ...recurring, lastGeneratedDate: today.toISOString() });
+                        generatedCount++;
+                    } else {
+                        updatedRecurring.push(recurring);
+                    }
+                });
+
+                if (generatedCount > 0) {
+                    const currentUser = useAuthStore.getState().currentUser;
+                    if (currentUser) {
+                        useAuditStore.getState().addLog({
+                            userId: currentUser.id,
+                            userName: currentUser.name,
+                            action: 'CRIAR',
+                            entity: 'LANÇAMENTO',
+                            details: `O sistema gerou automaticamente ${generatedCount} despesa(s) fixa(s) para o mês atual.`
+                        });
+                    }
+                }
+
+                return {
+                    entries: [...state.entries, ...newEntries],
+                    recurringExpenses: updatedRecurring
+                };
+            }),
 
             cleanOldTrash: () => set(state => {
                 const thirtyDaysAgo = new Date();

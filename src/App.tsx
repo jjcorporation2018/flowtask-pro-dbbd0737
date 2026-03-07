@@ -13,6 +13,8 @@ import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import LoginPage from "./pages/LoginPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import AuditLogPage from "./pages/AuditLogPage";
+import OportunidadesSearch from './pages/OportunidadesSearch';
+import OportunidadesDashboard from './pages/OportunidadesDashboard';
 import DashboardPage from "./pages/DashboardPage";
 import FolderPage from "./pages/FolderPage";
 import BoardPage from "./pages/BoardPage";
@@ -39,7 +41,7 @@ import { useCertificateStore } from '@/store/certificate-store';
 
 const AppContent = () => {
   const { cleanupTrash, cleanOldTrash: cleanKanbanTrash, companies, permanentlyDeleteCompany, updateCompany } = useKanbanStore();
-  const { addNotification, uiZoom } = useUserPrefsStore();
+  const { uiZoom, isDark } = useUserPrefsStore();
   const { documents, validateDocumentStatuses, cleanOldTrash: cleanDocsTrash } = useDocumentStore();
   const { cleanOldTrash: cleanAccountingTrash } = useAccountingStore();
   const { cleanOldTrash: cleanEssentialDocsTrash } = useEssentialDocumentStore();
@@ -48,6 +50,14 @@ const AppContent = () => {
   useEffect(() => {
     document.body.style.zoom = uiZoom as any;
   }, [uiZoom]);
+
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDark]);
 
   useEffect(() => {
     cleanupTrash(); // Keep the old 15-day cleanup for cards if that's what's intended, or just run the new one
@@ -88,7 +98,7 @@ const AppContent = () => {
               if (invalidStatuses.includes(data.descricao_situacao_cadastral?.toUpperCase())) {
                 // If the status became invalid, delete it and notify the user
                 store.permanentlyDeleteCompany(needsCheck.id);
-                useUserPrefsStore.getState().addNotification(
+                useKanbanStore.getState().addNotification(
                   'Empresa Removida Automaticamente',
                   `O CNPJ ${needsCheck.cnpj} (${needsCheck.nome_fantasia || needsCheck.razao_social}) foi excluído do sistema pois a situação cadastral na Receita consta como "${data.descricao_situacao_cadastral}".`
                 );
@@ -109,6 +119,14 @@ const AppContent = () => {
 
     return () => clearInterval(monitorInterval);
   }, []); // Run only once
+
+  // Initialize Kanban Store data (e.g., fetch from API if not local)
+  useEffect(() => {
+    // This runs once when the app mounts
+    // Placeholder for actual data initialization
+    useKanbanStore.getState();
+    useAccountingStore.getState().generateRecurringExpenses();
+  }, []);
 
   // Document Expiration Monitor
   useEffect(() => {
@@ -145,7 +163,7 @@ const AppContent = () => {
 
           if (notifyKey !== -1 && doc.lastNotifiedIndex !== notifyKey) {
             const isExpired = doc.status === 'expired';
-            useUserPrefsStore.getState().addNotification(
+            useKanbanStore.getState().addNotification(
               isExpired ? 'Documento Expirado' : 'Documento Vencendo Próximo',
               `O documento "${doc.title}" ${isExpired ? 'expirou em' : 'vencerá em'} ${expirationDate.toLocaleDateString('pt-BR')}.`,
               '/documentacao'
@@ -170,6 +188,8 @@ const AppContent = () => {
       <Route path="/kunbun" element={<ProtectedRoute><KunbunPage /></ProtectedRoute>} />
       <Route path="/folder/:folderId" element={<ProtectedRoute><FolderPage /></ProtectedRoute>} />
       <Route path="/board/:boardId" element={<ProtectedRoute><BoardPage /></ProtectedRoute>} />
+      <Route path="/oportunidades" element={<ProtectedRoute><OportunidadesDashboard /></ProtectedRoute>} />
+      <Route path="/oportunidades/busca" element={<ProtectedRoute><OportunidadesSearch /></ProtectedRoute>} />
       <Route path="/calendar" element={<ProtectedRoute><GlobalCalendarPage /></ProtectedRoute>} />
       <Route path="/team" element={<ProtectedRoute><TeamWorkloadPage /></ProtectedRoute>} />
       <Route path="/suppliers" element={<ProtectedRoute><SuppliersPage /></ProtectedRoute>} />

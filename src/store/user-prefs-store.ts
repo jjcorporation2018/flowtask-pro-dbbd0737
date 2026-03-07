@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Notification } from '@/types/kanban';
 
 const uid = () => crypto.randomUUID();
 
@@ -20,13 +19,6 @@ interface UserPrefsState {
     // Board presentation preferences
     boardPreferences: Record<string, { viewMode: 'kanban' | 'calendar' | 'list', sortBy: 'default' | 'priority' | 'assignee' | 'dueDate' }>;
     setBoardPreference: (boardId: string, prefs: Partial<{ viewMode: 'kanban' | 'calendar' | 'list', sortBy: 'default' | 'priority' | 'assignee' | 'dueDate' }>) => void;
-
-    // Notifications
-    notifications: Notification[];
-    addNotification: (title: string, message: string, link?: string) => void;
-    markNotificationRead: (id: string) => void;
-    markAllNotificationsRead: () => void;
-    clearNotifications: () => void;
 }
 
 export const useUserPrefsStore = create<UserPrefsState>()(
@@ -52,19 +44,6 @@ export const useUserPrefsStore = create<UserPrefsState>()(
                     [boardId]: { ...(s.boardPreferences[boardId] || { viewMode: 'kanban', sortBy: 'default' }), ...prefs }
                 }
             })),
-
-            // Notifications
-            notifications: [],
-            addNotification: (title, message, link) => set(s => ({
-                notifications: [{ id: uid(), title, message, link, read: false, createdAt: new Date().toISOString() }, ...s.notifications]
-            })),
-            markNotificationRead: (id) => set(s => ({
-                notifications: s.notifications.map(n => n.id === id ? { ...n, read: true } : n)
-            })),
-            markAllNotificationsRead: () => set(s => ({
-                notifications: s.notifications.map(n => ({ ...n, read: true }))
-            })),
-            clearNotifications: () => set({ notifications: [] }),
         }),
         {
             name: 'polaryon-user-prefs', // Key specific for this user/browser

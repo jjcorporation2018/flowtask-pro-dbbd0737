@@ -1,11 +1,14 @@
 import { useState } from 'react';
 import { useCertificateStore, CapacityCertificate } from '@/store/certificate-store';
-import { Plus, Search, FileBadge, Trash2, Edit, ExternalLink } from 'lucide-react';
+import { Plus, Search, FileBadge, Trash2, Edit, ExternalLink, Download } from 'lucide-react';
 import { format } from 'date-fns';
 import CertificateForm from '@/components/documentation/CertificateForm';
 import { useKanbanStore } from '@/store/kanban-store';
+import { useAuthStore } from '@/store/auth-store';
 
 const CapacityCertificatesPage = () => {
+    const { currentUser } = useAuthStore();
+    const canEdit = currentUser?.permissions?.canEdit ?? false;
     const { certificates, trashCertificate } = useCertificateStore();
     const { cards } = useKanbanStore();
     const [searchQuery, setSearchQuery] = useState('');
@@ -35,6 +38,30 @@ const CapacityCertificatesPage = () => {
         setEditingCert(null);
     };
 
+    const handleExportCSV = () => {
+        const headers = ['Emissor/Cliente', 'Fornecimento', 'Quantidade', 'Descrição', 'Tipos', 'Data Exec.', 'Possui Anexos?'];
+
+        const rows = filteredCerts.map(cert => [
+            `"${cert.issuingAgency.replace(/"/g, '""')}"`,
+            `"${cert.suppliedItems.replace(/"/g, '""')}"`,
+            cert.suppliedQuantity || '',
+            `"${(cert.description || '').replace(/"/g, '""')}"`,
+            `"${cert.type.join(', ')}"`,
+            format(new Date(cert.executionDate), 'dd/MM/yyyy'),
+            cert.attachments.length > 0 ? 'Sim' : 'Não'
+        ]);
+
+        const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `atestados_capacidade_${format(new Date(), 'dd_MM_yyyy')}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     return (
         <div className="flex-1 flex flex-col h-full bg-kanban-bg overflow-hidden relative">
             <div className="flex items-center justify-between p-6 px-12 border-b border-border/10 bg-card/30 shrink-0">
@@ -45,13 +72,23 @@ const CapacityCertificatesPage = () => {
                     </h1>
                     <p className="text-sm text-muted-foreground mt-1">Acervo técnico, fornecimentos e serviços prestados.</p>
                 </div>
-                <button
-                    onClick={() => setIsFormOpen(true)}
-                    className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded font-medium hover:bg-primary/90 transition-colors shadow-sm"
-                >
-                    <Plus className="h-4 w-4" />
-                    Novo Atestado
-                </button>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={handleExportCSV}
+                        className="flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-secondary/80 text-foreground text-sm font-bold rounded transition-colors shadow-sm"
+                    >
+                        <Download className="h-4 w-4" /> Exportar CSV
+                    </button>
+                    {canEdit && (
+                        <button
+                            onClick={() => setIsFormOpen(true)}
+                            className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded font-medium hover:bg-primary/90 transition-colors shadow-sm"
+                        >
+                            <Plus className="h-4 w-4" />
+                            Novo Atestado
+                        </button>
+                    )}
+                </div>
             </div>
 
             <div className="flex-1 overflow-auto p-12 custom-scrollbar">
@@ -164,24 +201,28 @@ const CapacityCertificatesPage = () => {
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4 flex items-center justify-end gap-2">
-                                                        <button
-                                                            onClick={() => handleEdit(cert)}
-                                                            className="p-1.5 text-muted-foreground hover:text-accent hover:bg-accent/10 rounded transition-colors"
-                                                            title="Editar Atestado"
-                                                        >
-                                                            <Edit className="h-4 w-4" />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => {
-                                                                if (window.confirm('Mover este atestado para a lixeira?')) {
-                                                                    trashCertificate(cert.id);
-                                                                }
-                                                            }}
-                                                            className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded transition-colors"
-                                                            title="Excluir Atestado"
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </button>
+                                                        {canEdit && (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => handleEdit(cert)}
+                                                                    className="p-1.5 text-muted-foreground hover:text-accent hover:bg-accent/10 rounded transition-colors"
+                                                                    title="Editar Atestado"
+                                                                >
+                                                                    <Edit className="h-4 w-4" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        if (window.confirm('Mover este atestado para a lixeira?')) {
+                                                                            trashCertificate(cert.id);
+                                                                        }
+                                                                    }}
+                                                                    className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded transition-colors"
+                                                                    title="Excluir Atestado"
+                                                                >
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </button>
+                                                            </>
+                                                        )}
                                                     </td>
                                                 </tr>
                                             );

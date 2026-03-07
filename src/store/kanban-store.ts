@@ -21,6 +21,12 @@ interface KanbanState {
   companies: Company[];
   routes: Route[];
   budgets: Budget[];
+  notifications: Notification[];
+
+  addNotification: (title: string, message: string, link?: string, type?: 'info' | 'success' | 'warning', targetUserId?: string) => void;
+  markNotificationRead: (id: string) => void;
+  markAllNotificationsRead: (userId?: string) => void;
+  clearNotifications: (userId?: string) => void;
 
   undoAction: { cardId: string; previousListId: string; previousPosition: number; message: string; type: 'archived' | 'trashed' | 'moved' } | null;
   setUndoAction: (action: KanbanState['undoAction']) => void;
@@ -102,8 +108,28 @@ export const useKanbanStore = create<KanbanState>()(
       companies: [],
       routes: [],
       budgets: [],
+      notifications: [],
       undoAction: null,
       recentMilestoneTitles: [],
+
+      addNotification: (title, message, link, type = 'info', targetUserId) => set(s => ({
+        notifications: [{ id: uid(), title, message, link, read: false, createdAt: new Date().toISOString(), type, userId: targetUserId }, ...s.notifications]
+      })),
+      markNotificationRead: (id) => set(s => ({
+        notifications: s.notifications.map(n => n.id === id ? { ...n, read: true } : n)
+      })),
+      markAllNotificationsRead: (userId) => set(s => ({
+        notifications: s.notifications.map(n => {
+          if (!userId || n.userId === userId) return { ...n, read: true };
+          return n;
+        })
+      })),
+      clearNotifications: (userId) => set(s => ({
+        notifications: userId ? s.notifications.filter(n => n.userId !== userId) : []
+      })),
+
+      setUndoAction: (action) => set({ undoAction: action }),
+      clearUndoAction: () => set({ undoAction: null }),
 
       addMainCompany: (data) => {
         const newId = uid();
@@ -245,7 +271,7 @@ export const useKanbanStore = create<KanbanState>()(
           });
         }
         return {
-          budgets: [{ ...budgetData, id: uid(), createdAt: new Date().toISOString() }, ...s.budgets]
+          budgets: [{ ...budgetData, userId: currentUser?.id, id: uid(), createdAt: new Date().toISOString() }, ...s.budgets]
         };
       }),
       updateBudget: (id, data) => set(s => {
@@ -520,6 +546,17 @@ export const useKanbanStore = create<KanbanState>()(
               entity: 'CARTÃO',
               details: `Moveu "${targetCard.title}" para a fase/lista "${targetList.title}"`
             });
+
+            // Adicionar Notificação
+            if (targetCard.assignee && targetCard.assignee !== currentUser.id) {
+              get().addNotification(
+                'Cartão Movido',
+                `"${targetCard.title}" avançou para ${targetList.title}`,
+                `/board/${targetList.boardId}`,
+                'info',
+                targetCard.assignee
+              );
+            }
           }
         }
 
