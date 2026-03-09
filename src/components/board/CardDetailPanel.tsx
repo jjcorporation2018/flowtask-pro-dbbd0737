@@ -44,7 +44,7 @@ const SECTION_LABELS: Record<string, { icon: React.ReactNode; label: string }> =
 
 const CardDetailPanel = ({ cardId, onClose }: Props) => {
   const {
-    cards, labels, members, lists, boards, updateCard, deleteCard, moveCard,
+    cards, labels, lists, boards, updateCard, deleteCard, moveCard,
     addChecklistItem, toggleChecklistItem, deleteChecklistItem,
     addComment, startTimer, stopTimer, resetTimer,
     addLabel, updateLabel, deleteLabel,
@@ -54,7 +54,15 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
   const card = cards.find(c => c.id === cardId);
   const list = card ? lists.find(l => l.id === card.listId) : null;
   const navigate = useNavigate();
-  const { currentUser } = useAuthStore();
+  const { currentUser, systemUsers } = useAuthStore();
+  const members = systemUsers
+    .filter(u => u.permissions.canEdit)
+    .map(u => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      avatar: u.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=random`
+    }));
   const canEdit = currentUser?.role === 'ADMIN' || currentUser?.permissions?.canEdit;
   const canDownload = currentUser?.role === 'ADMIN' || currentUser?.permissions?.canDownload;
 

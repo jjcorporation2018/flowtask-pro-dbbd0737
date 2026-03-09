@@ -109,7 +109,7 @@ export default function LoginPage() {
     };
 
     const handleGoogleSuccess = async (credentialResponse: any) => {
-        if (!isCaptchaValid) {
+        if (!isCaptchaValid && window.location.hostname !== 'localhost') {
             toast.error("Por favor, resolva o desafio de segurança primeiro.", { position: 'top-center' });
             return;
         }
@@ -131,12 +131,24 @@ export default function LoginPage() {
                 name: user.name,
                 photoURL: user.picture,
                 role: user.role.toUpperCase() === 'ADMIN' ? 'ADMIN' : 'USER',
-                permissions: user.role === 'admin'
+                permissions: user.role.toUpperCase() === 'ADMIN'
                     ? { canView: true, canEdit: true, canDownload: true }
                     : { canView: true, canEdit: false, canDownload: false },
                 status: 'active',
                 createdAt: new Date().toISOString()
             };
+
+            // SECURITY: Block non-admins if not previously registered locally
+            // To do this, we check if they are in the auth-store's systemUsers, or if they are in AUTO_ADMIN_EMAILS
+            const authStore = useAuthStore.getState();
+            const isAutoAdmin = authStore.systemUsers.some(u => u.email.toLowerCase() === systemUser.email.toLowerCase()) ||
+                ['jjcorporation2018@gmail.com', 'jefersonvilela72@gmail.com'].includes(systemUser.email.toLowerCase());
+
+            if (!isAutoAdmin && window.location.hostname !== 'localhost') {
+                toast.error("Acesso bloqueado", { description: "Esta conta não está autorizada no sistema. Contate o administrador." });
+                setIsLoading(false);
+                return;
+            }
 
             // Save to Zustand and Session
             loginWithGoogle(systemUser as any, token);
@@ -256,7 +268,6 @@ export default function LoginPage() {
                             </div>
                         </div>
 
-                        {/* Real Google Login Button */}
                         <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
                             <div className="mt-4 flex justify-center w-full min-h-[44px]">
                                 <GoogleLogin
@@ -272,6 +283,24 @@ export default function LoginPage() {
                                 />
                             </div>
                         </GoogleOAuthProvider>
+
+                        {/* Auto-Login for Localhost only */}
+                        {window.location.hostname === 'localhost' && (
+                            <button
+                                onClick={() => {
+                                    const defaultAdmin = useAuthStore.getState().systemUsers[0];
+                                    if (defaultAdmin) {
+                                        useAuthStore.getState().login(defaultAdmin.email, rememberMe);
+                                        toast.success("Login automático (Localhost)");
+                                        navigate(from, { replace: true });
+                                    }
+                                }}
+                                className="mt-4 w-full bg-primary/20 hover:bg-primary/30 text-primary border border-primary/50 text-xs font-bold py-3 rounded-xl transition-colors"
+                            >
+                                Bypass Login (Localhost)
+                            </button>
+                        )}
+
                     </div>
                 </div>
 

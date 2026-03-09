@@ -18,3 +18,142 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
+
+// ==========================================
+// KUNBAN MODELS
+// ==========================================
+
+model Folder {
+  id          String    @id @default(uuid())
+  name        String
+  color       String
+  icon        String
+  sideImage   String?
+  createdAt   DateTime  @default(now())
+  archived    Boolean   @default(false)
+  trashed     Boolean   @default(false)
+  trashedAt   DateTime?
+  boards      Board[]
+}
+
+model Board {
+  id              String    @id @default(uuid())
+  folderId        String
+  folder          Folder    @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  name            String
+  backgroundColor String
+  backgroundImage String?
+  createdAt       DateTime  @default(now())
+  archived        Boolean   @default(false)
+  trashed         Boolean   @default(false)
+  trashedAt       DateTime?
+  isFavorite      Boolean   @default(false)
+  lists           KanbanList[]
+}
+
+model KanbanList {
+  id          String    @id @default(uuid())
+  boardId     String
+  board       Board     @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  title       String
+  position    Float
+  color       String?
+  icon        String?
+  archived    Boolean   @default(false)
+  trashed     Boolean   @default(false)
+  trashedAt   DateTime?
+  cards       Card[]
+  automations Json?
+}
+
+model Label {
+  id          String   @id @default(uuid())
+  name        String
+  color       String
+  icon        String?
+  cards       CardLabel[]
+}
+
+model Card {
+  id          String    @id @default(uuid())
+  listId      String
+  list        KanbanList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  title       String
+  summary     String?   @db.Text
+  description String?   @db.Text
+  position    Float
+  assignee    String?
+  dueDate     DateTime?
+  startDate   DateTime?
+  estimatedTime Int?
+  completed   Boolean   @default(false)
+  archived    Boolean   @default(false)
+  trashed     Boolean   @default(false)
+  trashedAt   DateTime?
+  customLink  String?
+  pncpId      String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  labels      CardLabel[]
+  checklist   ChecklistItem[]
+  comments    Comment[]
+  timeEntries TimeEntry[]
+  attachments Attachment[]
+  milestones  Milestone[]
+  automationUndoAction Json?
+}
+
+model CardLabel {
+  cardId  String
+  labelId String
+  card    Card  @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  label   Label @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([cardId, labelId])
+}
+
+model ChecklistItem {
+  id        String   @id @default(uuid())
+  cardId    String
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  text      String
+  completed Boolean  @default(false)
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  cardId    String
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  text      String   @db.Text
+  author    String
+  createdAt DateTime @default(now())
+}
+
+model TimeEntry {
+  id        String   @id @default(uuid())
+  cardId    String
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  startedAt DateTime
+  endedAt   DateTime?
+  duration  Int      // seconds
+}
+
+model Attachment {
+  id        String   @id @default(uuid())
+  cardId    String
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  name      String
+  url       String   @db.Text
+  type      String
+  addedAt   DateTime @default(now())
+}
+
+model Milestone {
+  id        String   @id @default(uuid())
+  cardId    String
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  title     String
+  dueDate   DateTime?
+  completed Boolean  @default(false)
+}

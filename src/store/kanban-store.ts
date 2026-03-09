@@ -100,11 +100,7 @@ export const useKanbanStore = create<KanbanState>()(
       lists: [],
       cards: [],
       labels: [...DEFAULT_LABELS],
-      members: [
-        { id: 'm1', name: 'João Silva', email: 'joao@jjcorp.com', avatar: 'https://i.pravatar.cc/150?u=joao' },
-        { id: 'm2', name: 'Maria Souza', email: 'maria@jjcorp.com', avatar: 'https://i.pravatar.cc/150?u=maria' },
-        { id: 'm3', name: 'Carlos Santos', email: 'carlos@jjcorp.com', avatar: 'https://i.pravatar.cc/150?u=carlos' },
-      ],
+      members: [],
       companies: [],
       routes: [],
       budgets: [],

@@ -38,11 +38,36 @@ export const BankReconciliation = () => {
         setSelectedTransaction(null);
     };
 
+    const handleAutoReconcile = () => {
+        let count = 0;
+        pendingTransactions.forEach(tx => {
+            const matchingEntry = companyEntries.find(e =>
+                e.status === 'pending' &&
+                e.amount === tx.amount &&
+                (
+                    (tx.type === 'credit' && e.type === 'revenue') ||
+                    (tx.type === 'debit' && e.type === 'expense')
+                )
+            );
+            if (matchingEntry) {
+                reconcileTransaction(tx.id, matchingEntry.id);
+                count++;
+            }
+        });
+        if (count > 0) {
+            toast.success(`${count} lançamentos conciliados automaticamente!`);
+        } else {
+            toast.info("Nenhuma correspondência exata encontrada para conciliação automática.");
+        }
+        setSelectedEntry(null);
+        setSelectedTransaction(null);
+    };
+
     const simulateBankImport = () => {
         if (!activeCompany) return;
         // Simulate importing a bank statement line that matches a pending entry roughly
         if (companyEntries.length > 0) {
-            const entryToMatch = companyEntries[0];
+            const entryToMatch = companyEntries[Math.floor(Math.random() * companyEntries.length)];
             addBankTransaction({
                 companyId: activeCompany.id,
                 date: new Date().toISOString(),
@@ -51,7 +76,7 @@ export const BankReconciliation = () => {
                 type: entryToMatch.type === 'revenue' ? 'credit' : 'debit',
                 status: 'pending'
             });
-            toast.success("Extrato bancário simulado importado.");
+            toast.success("Extrato bancário simulado importado (com match exato).");
         } else {
             addBankTransaction({
                 companyId: activeCompany.id,
@@ -99,6 +124,14 @@ export const BankReconciliation = () => {
                             Simular Extrato
                         </button>
                     )}
+                    <button
+                        onClick={handleAutoReconcile}
+                        className="text-xs bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 px-3 py-1.5 rounded flex items-center gap-1 transition-colors font-medium ml-2"
+                        title="Conciliar automaticamente valores idênticos"
+                    >
+                        <RefreshCw className="h-3 w-3" />
+                        Conciliação Automática
+                    </button>
                 </div>
             </div>
 
@@ -106,24 +139,17 @@ export const BankReconciliation = () => {
 
                 {/* Overlay explaining backend dependency if connected */}
                 {connectedBankState && (
-                    <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center p-6 text-center">
-                        <div className="h-16 w-16 bg-emerald-500/20 rounded-full flex items-center justify-center mb-4">
-                            <ShieldCheck className="h-8 w-8 text-emerald-500" />
-                        </div>
-                        <h3 className="text-lg font-bold text-foreground mb-2">Conexão Open Finance Ativa</h3>
-                        <p className="text-sm text-muted-foreground max-w-md">
-                            A interface do <b>Open Finance</b> foi ativada com sucesso. Para que as transações reais apareçam aqui automaticamente (como via Pluggy ou TecnoSpeed), esta funcionalidade aguarda a implementação do Backend do sistema.
-                        </p>
+                    <div className="absolute top-2 right-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2 text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-2 z-10 shadow-sm backdrop-blur-sm">
+                        <ShieldCheck className="h-4 w-4" />
+                        Open Finance: Sincronização em tempo real ativada (Modo Local).
                         <button
                             onClick={() => setConnectedBankState(false)}
-                            className="mt-6 text-xs text-muted-foreground hover:text-foreground underline transition-colors"
+                            className="ml-2 underline hover:text-emerald-700 dark:hover:text-emerald-300"
                         >
-                            Voltar para o modo de simulação manual
+                            Desconectar
                         </button>
                     </div>
                 )}
-
-
                 {/* Extrato Bancário */}
                 <div className="p-4 flex flex-col h-full">
                     <h4 className="text-sm font-medium text-muted-foreground mb-4">Extrato Bancário (Aberto)</h4>

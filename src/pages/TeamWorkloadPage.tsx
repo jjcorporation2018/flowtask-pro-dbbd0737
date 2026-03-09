@@ -1,4 +1,5 @@
 import { useKanbanStore } from '@/store/kanban-store';
+import { useAuthStore } from '@/store/auth-store';
 import { useAccountingStore } from '@/store/accounting-store';
 import { useDocumentStore } from '@/store/document-store';
 import { Users, CheckCircle2, Clock, AlertCircle, FileText, PiggyBank, Calculator, Target } from 'lucide-react';
@@ -7,7 +8,19 @@ import { useState, useMemo } from 'react';
 import { Card } from '@/types/kanban';
 
 export default function TeamWorkloadPage() {
-    const members = useKanbanStore(state => state.members);
+    // Dynamic mapping of members from the auth-store
+    const { systemUsers } = useAuthStore();
+    const members = useMemo(() => {
+        return systemUsers
+            .filter(u => u.permissions.canEdit)
+            .map(u => ({
+                id: u.id,
+                name: u.name,
+                email: u.email,
+                avatar: u.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=random`
+            }));
+    }, [systemUsers]);
+
     const cards = useKanbanStore(state => state.cards);
     const boards = useKanbanStore(state => state.boards);
     const lists = useKanbanStore(state => state.lists);
