@@ -30,9 +30,11 @@ interface AuthState {
     currentUser: SystemUser | null;
     systemUsers: SystemUser[];
     isAuthenticated: boolean;
+    jwtToken: string | null;
 
     // Actions
     login: (email: string, rememberMe?: boolean) => boolean;
+    loginWithGoogle: (userData: SystemUser, token: string) => void;
     logout: () => void;
     updateProfile: (updates: Partial<SystemUser>) => void;
 
@@ -81,6 +83,15 @@ export const useAuthStore = create<AuthState>()(
             currentUser: null,
             systemUsers: [DEFAULT_ADMIN], // Start with the default admin
             isAuthenticated: false,
+            jwtToken: null,
+
+            loginWithGoogle: (userData: SystemUser, token: string) => {
+                set({
+                    currentUser: userData,
+                    isAuthenticated: true,
+                    jwtToken: token
+                });
+            },
 
             login: (email: string, rememberMe = false) => {
                 const { systemUsers, addUser, updateUser } = get();
