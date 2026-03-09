@@ -1,3 +1,5 @@
+import axios from 'axios';
+
 // Create central Axios instance
 const api = axios.create({
     baseURL: 'https://polaryon.com.br/api', // Produção: Domínio Oficial HTTPS
