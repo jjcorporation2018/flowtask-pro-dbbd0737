@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Create central Axios instance
 const api = axios.create({
-    baseURL: 'https://polaryon.com.br/api', // Produção: Domínio Oficial HTTPS
+    baseURL: 'http://localhost:3000/api', // Desenvolvimento Local
     timeout: 10000,
     headers: {
         'Content-Type': 'application/json',
