@@ -11,6 +11,7 @@ const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3000;
 
 import authRoutes from './routes/auth';
+import usersRoutes from './routes/users';
 
 // Security and Parsing Middlewares
 app.use(helmet());
@@ -35,6 +36,7 @@ app.get('/health', async (req: Request, res: Response) => {
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/users', usersRoutes);
 
 // Start Server
 app.listen(PORT, () => {

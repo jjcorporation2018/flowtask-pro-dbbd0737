@@ -1,26 +1,47 @@
 import axios from 'axios';
-import { useAuthStore } from '@/store/auth-store';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
-
+// Create central Axios instance
 const api = axios.create({
-    baseURL: API_URL,
+    baseURL: 'http://204.168.151.231/api', // Produção: Servidor Ubuntu Hetzner
+    timeout: 10000,
     headers: {
         'Content-Type': 'application/json',
-    },
+    }
 });
 
-// Interceptor to inject JWT Token on every internal request
+// Request Interceptor: Attach JWT Token
 api.interceptors.request.use(
     (config) => {
-        // If the token is saved in Zustand store, get it
-        const token = useAuthStore.getState().jwtToken;
-        if (token && config.headers) {
-            config.headers.Authorization = `Bearer ${token}`;
+        // Retrieve token from whatever auth store mechanism you are using
+        // It could be sessionStorage or zustand. We'll read from sessionStorage to be safe.
+        const authDataStr = sessionStorage.getItem('auth-storage');
+        if (authDataStr) {
+            try {
+                const state = JSON.parse(authDataStr).state;
+                if (state && state.token) {
+                    config.headers.Authorization = `Bearer ${state.token}`;
+                }
+            } catch (e) {
+                console.error("Error parsing auth-storage", e);
+            }
         }
         return config;
     },
     (error) => {
+        return Promise.reject(error);
+    }
+);
+
+// Response Interceptor: Handle 401/403 globally
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response && error.response.status === 401) {
+            // Token expired or invalid
+            console.error('Session expired or unauthorized');
+            // If you want to automatically log out here, you could dispatch an event
+            // or call a store method.
+        }
         return Promise.reject(error);
     }
 );

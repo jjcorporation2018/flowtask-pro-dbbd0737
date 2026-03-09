@@ -1,15 +1,18 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuthStore, SystemUser, UserRole } from '@/store/auth-store';
 import { toast } from 'sonner';
 import {
     Users, ShieldAlert, KeyRound, Mail, Trash2,
-    Save, Plus, ShieldCheck
+    Save, Plus, ShieldCheck, RefreshCcw
 } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import { AuditMetricsDash } from './AuditMetricsDash';
+import api from '@/lib/api';
 
 export default function AdminDashboardPage() {
-    const { currentUser, systemUsers, addUser, updateUser, removeUser } = useAuthStore();
+    const { currentUser, addUser, updateUser, removeUser } = useAuthStore();
+    const [systemsUsersDb, setSystemsUsersDb] = useState<SystemUser[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
 
     // Prevent non-admins from rendering this (fallback as layout should protect it ideally)
     if (currentUser?.role !== 'ADMIN') {
@@ -22,71 +25,101 @@ export default function AdminDashboardPage() {
     const [newRole, setNewRole] = useState<UserRole>('USER');
     const [newPerms, setNewPerms] = useState({ canView: true, canEdit: false, canDownload: false });
 
+    // Fetch REAL users from PostgreSQL (Hetzner Nuvem)
+    const loadUsers = async () => {
+        try {
+            setIsLoading(true);
+            const res = await api.get('/users');
+            // Map the pure database user to our frontend structure
+            const mappedUsers = res.data.map((u: any) => ({
+                id: u.id,
+                email: u.email,
+                name: u.name,
+                photoURL: u.picture,
+                role: u.role.toUpperCase() === 'ADMIN' ? 'ADMIN' : 'USER',
+                permissions: u.role === 'admin'
+                    ? { canView: true, canEdit: true, canDownload: true }
+                    : { canView: true, canEdit: false, canDownload: false },
+                status: u.role === 'disabled' ? 'disabled' : 'active',
+                createdAt: u.createdAt
+            }));
+            setSystemsUsersDb(mappedUsers);
+        } catch (error) {
+            console.error("Failed to load users", error);
+            toast.error("Erro ao carregar a lista de usuários da Nuvem.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        loadUsers();
+    }, []);
+
     const handleAddUser = () => {
         if (!newEmail.match(/^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/g)) {
             toast.error("Por favor, informe um e-mail válido.");
             return;
         }
 
-        if (systemUsers.some(u => u.email.toLowerCase() === newEmail.toLowerCase())) {
+        if (systemsUsersDb.some(u => u.email.toLowerCase() === newEmail.toLowerCase())) {
             toast.error("Este e-mail já está cadastrado no sistema.");
             return;
         }
 
-        addUser({
-            email: newEmail.trim(),
-            name: newName.trim() || 'Usuário Convidado',
-            role: newRole,
-            permissions: newPerms,
-            status: 'active'
-        });
+        toast.info(
+            "O novo sistema não exige pré-cadastro. Peça ao colaborador que faça Login com o Google diretamente, e seu e-mail aparecerá aqui para ser Aprovado (como Usuário Normal ou Administrador).",
+            { duration: 8000 }
+        );
 
-        toast.success(`Convite de acesso enviado para ${newEmail}!`);
         setIsAdding(false);
         setNewEmail('');
         setNewName('');
-        setNewRole('USER');
-        setNewPerms({ canView: true, canEdit: false, canDownload: false });
     };
 
     const togglePermission = (userId: string, perm: keyof SystemUser['permissions']) => {
-        const user = systemUsers.find(u => u.id === userId);
-        if (user) {
-            updateUser(userId, {
-                permissions: { ...user.permissions, [perm]: !user.permissions[perm] }
-            });
-            toast.info(`Permissão atualizada para ${user.name}`);
+        toast.info("Permissões individuais em breve. Por hora defina os Papéis via Nível (Admin/Normal).");
+    };
+
+    const toggleRole = async (userId: string) => {
+        const user = systemsUsersDb.find(u => u.id === userId);
+        if (user && user.id !== currentUser?.id) {
+            const newRoleInDb = user.role === 'ADMIN' ? 'default' : 'admin';
+            try {
+                toast.loading("Alterando privilégios no Banco de Dados...", { id: `role-${userId}` });
+                await api.put(`/users/${userId}/role`, { role: newRoleInDb });
+                toast.success("Nível de acesso alterado na nuvem.", { id: `role-${userId}` });
+                loadUsers(); // refresh the list
+            } catch (error) {
+                console.error(error);
+                toast.error("Falha ao atualizar papel.", { id: `role-${userId}` });
+            }
         }
     };
 
-    const toggleRole = (userId: string) => {
-        const user = systemUsers.find(u => u.id === userId);
-        if (user && user.id !== currentUser.id) {
-            updateUser(userId, {
-                role: user.role === 'ADMIN' ? 'USER' : 'ADMIN'
-            });
-            toast.success("Nível de acesso alterado.");
-        }
-    };
-
-    const toggleStatus = (userId: string) => {
-        const user = systemUsers.find(u => u.id === userId);
-        if (user && user.id !== currentUser.id) {
-            updateUser(userId, {
-                status: user.status === 'active' ? 'disabled' : 'active'
-            });
-            toast.warning(`Conta ${user.status === 'active' ? 'desativada' : 'ativada'}.`);
+    const toggleStatus = async (userId: string) => {
+        const user = systemsUsersDb.find(u => u.id === userId);
+        if (user && user.id !== currentUser?.id) {
+            const newRoleStatus = user.status === 'active' ? 'disabled' : (user.role === 'ADMIN' ? 'admin' : 'default');
+            try {
+                toast.loading(`${user.status === 'active' ? 'Desativando' : 'Reativando'} conta...`, { id: `status-${userId}` });
+                await api.put(`/users/${userId}/role`, { role: newRoleStatus });
+                toast.success(`Conta ${user.status === 'active' ? 'desativada bloqueando acesso' : 'reativada'}.`, { id: `status-${userId}` });
+                loadUsers();
+            } catch (error) {
+                console.error(error);
+                toast.error("Falha ao atualizar status.", { id: `status-${userId}` });
+            }
         }
     };
 
     const handleDeleteUser = (userId: string) => {
-        if (userId === currentUser.id) {
+        if (userId === currentUser?.id) {
             toast.error("Você não pode excluir sua própria conta aqui.");
             return;
         }
         if (window.confirm("Certeza que deseja remover este acesso permanentemente?")) {
-            removeUser(userId);
-            toast.success("Usuário removido.");
+            toast.info("A exclusão definitiva será implementada na Fase 45. Por enquanto, Desative o Status da conta para revogar o acesso imediato.");
         }
     };
 
@@ -221,8 +254,17 @@ export default function AdminDashboardPage() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
-                            {systemUsers.map(user => {
-                                const isMe = user.id === currentUser.id;
+                            {isLoading ? (
+                                <tr>
+                                    <td colSpan={6} className="px-5 py-8 text-center text-muted-foreground animate-pulse">
+                                        <div className="flex flex-col items-center justify-center gap-2">
+                                            <RefreshCcw className="w-5 h-5 animate-spin text-primary" />
+                                            Sincronizando Banco de Dados PostgreSQL...
+                                        </div>
+                                    </td>
+                                </tr>
+                            ) : systemsUsersDb.map(user => {
+                                const isMe = user.id === currentUser?.id;
                                 return (
                                     <tr key={user.id} className="hover:bg-secondary/30 transition-colors group">
                                         <td className="px-5 py-4">
