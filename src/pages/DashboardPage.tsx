@@ -2,11 +2,12 @@ import { useKanbanStore } from '@/store/kanban-store';
 import { useAccountingStore } from '@/store/accounting-store';
 import { useDocumentStore } from '@/store/document-store';
 import { useAuthStore } from '@/store/auth-store';
-import { BarChart3, CheckCircle2, Clock, AlertTriangle, TrendingUp, FolderOpen, Filter, Tag, Star, Building2, Truck, Briefcase, BellRing, CalendarDays, FileText, PiggyBank, Calculator, AlertCircle, Info } from 'lucide-react';
+import { BarChart3, CheckCircle2, Clock, AlertTriangle, TrendingUp, FolderOpen, Filter, Tag, Star, Building2, Truck, Briefcase, BellRing, CalendarDays, FileText, PiggyBank, Calculator, AlertCircle, Info, Calendar as CalendarIcon } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import api from '@/lib/api';
 
 const Dashboard = () => {
   const { currentUser, hasScreenAccess } = useAuthStore();
@@ -16,6 +17,22 @@ const Dashboard = () => {
   const canBudgets = hasScreenAccess('BUDGETS');
   const canDocs = hasScreenAccess('DOCUMENTATION');
   const canAccounting = hasScreenAccess('ACCOUNTING');
+
+  const [googleEvents, setGoogleEvents] = useState<any[]>([]);
+
+  useEffect(() => {
+    const loadGoogleEvents = async () => {
+      try {
+        const res = await api.get('/calendar/events');
+        if (res.data.success && res.data.events) {
+          setGoogleEvents(res.data.events);
+        }
+      } catch (err) {
+        console.error("Silent Google Events Load Error on Dashboard:", err);
+      }
+    };
+    loadGoogleEvents();
+  }, []);
 
   const folders = useKanbanStore(state => state.folders);
   const boards = useKanbanStore(state => state.boards);
@@ -104,8 +121,20 @@ const Dashboard = () => {
   // Aggregate all upcoming events (next 15 days)
   const allUpcomingEvents = useMemo(() => {
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
     const futureLimit = new Date();
     futureLimit.setDate(today.getDate() + 15);
+    futureLimit.setHours(23, 59, 59, 999);
+
+    const safeDateObject = (dateParam: any) => {
+      if (!dateParam) return new Date();
+      const str = typeof dateParam === 'string' ? dateParam : new Date(dateParam).toISOString();
+      const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (!match) return new Date(dateParam);
+      const [, y, m, d] = match;
+      return new Date(parseInt(y), parseInt(m) - 1, parseInt(d, 10));
+    };
 
     const events: { id: string; title: string; date: Date; type: string; color: string; icon: React.ElementType }[] = [];
 
@@ -113,7 +142,7 @@ const Dashboard = () => {
     if (canKunbun) {
       upcomingCards.forEach(c => {
         if (c.dueDate) {
-          events.push({ id: c.id, title: `Tarefa: ${c.title}`, date: new Date(c.dueDate), type: 'tarefa', color: 'text-primary', icon: Clock });
+          events.push({ id: c.id, title: `Tarefa: ${c.title}`, date: safeDateObject(c.dueDate), type: 'tarefa', color: 'text-primary', icon: Clock });
         }
       });
     }
@@ -121,7 +150,7 @@ const Dashboard = () => {
     // 2. Budgets
     if (canBudgets) {
       budgets.filter(b => !b.trashed && b.status === 'Aguardando').forEach(b => {
-        const date = new Date(b.createdAt);
+        const date = safeDateObject(b.createdAt);
         if (date >= today && date <= futureLimit) {
           events.push({ id: b.id, title: `Proposta Aguardando: ${b.title}`, date, type: 'orcamento', color: 'text-blue-500', icon: Calculator });
         }
@@ -130,20 +159,27 @@ const Dashboard = () => {
 
     // 3. Documents
     if (canDocs) {
-      documents.filter(d => !d.trashed && new Date(d.expirationDate) >= today && new Date(d.expirationDate) <= futureLimit).forEach(d => {
-        events.push({ id: d.id, title: `Doc Expirando: ${d.title}`, date: new Date(d.expirationDate), type: 'documento', color: 'text-yellow-500', icon: FileText });
+      documents.filter(d => !d.trashed && safeDateObject(d.expirationDate) >= today && safeDateObject(d.expirationDate) <= futureLimit).forEach(d => {
+        events.push({ id: d.id, title: `Doc Expirando: ${d.title}`, date: safeDateObject(d.expirationDate), type: 'documento', color: 'text-yellow-500', icon: FileText });
       });
     }
 
     // 4. Accounting (Tax Obligations)
     if (canAccounting) {
-      taxObligations.filter(t => !t.trashedAt && t.status === 'pending' && new Date(t.dueDate) >= today && new Date(t.dueDate) <= futureLimit).forEach(t => {
-        events.push({ id: t.id, title: `Imposto a Pagar: ${t.name}`, date: new Date(t.dueDate), type: 'contabil', color: 'text-red-500', icon: PiggyBank });
+      taxObligations.filter(t => !t.trashedAt && t.status === 'pending' && safeDateObject(t.dueDate) >= today && safeDateObject(t.dueDate) <= futureLimit).forEach(t => {
+        events.push({ id: t.id, title: `Imposto a Pagar: ${t.name}`, date: safeDateObject(t.dueDate), type: 'contabil', color: 'text-red-500', icon: PiggyBank });
       });
     }
 
+    // 5. Google Calendar & Custom Events
+    googleEvents.filter(g => safeDateObject(g.date) >= today && safeDateObject(g.date) <= futureLimit).forEach(g => {
+      if (g.title && !g.title.startsWith('[Polaryon]')) {
+        events.push({ id: g.id, title: g.title, date: safeDateObject(g.date), type: 'google', color: 'text-purple-500', icon: CalendarIcon });
+      }
+    });
+
     return events.sort((a, b) => a.date.getTime() - b.date.getTime());
-  }, [upcomingCards, budgets, documents, taxObligations, canKunbun, canBudgets, canDocs, canAccounting]);
+  }, [upcomingCards, budgets, documents, taxObligations, canKunbun, canBudgets, canDocs, canAccounting, googleEvents]);
 
   return (
     <div className="flex-1 overflow-y-auto p-6">

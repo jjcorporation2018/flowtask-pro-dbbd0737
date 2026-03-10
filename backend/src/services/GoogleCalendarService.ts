@@ -98,15 +98,13 @@ export const pushEventToGoogle = async (
     if (!accessToken) throw new Error("NEEDS_AUTH");
 
     let eventToPush = { ...event };
-    if (cardId) {
-        eventToPush.description = `${event.description || ''}\n\n[PolaryonID: ${cardId}]`;
-    }
 
-    // Attempt to find an existing event by PolaryonID
+    // Attempt to find an existing event by PolaryonID using privateExtendedProperty
     let existingEventId = null;
     if (cardId) {
         try {
-            const searchRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?q=[PolaryonID: ${cardId}]`, {
+            // privateExtendedProperty is perfect for programmatic associations without mangling descriptions
+            const searchRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?privateExtendedProperty=polaryonId=${cardId}`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` }
             });
             if (searchRes.ok) {
@@ -118,6 +116,13 @@ export const pushEventToGoogle = async (
         } catch (e) {
             console.error("Error searching for existing Google Event:", e);
         }
+
+        // Add the extended property to the payload to survive future syncs
+        (eventToPush as any).extendedProperties = {
+            private: {
+                polaryonId: cardId
+            }
+        };
     }
 
     const method = existingEventId ? 'PUT' : 'POST';
@@ -150,7 +155,7 @@ export const deleteEventFromGoogle = async (cardId: string) => {
     if (!accessToken) return;
 
     try {
-        const searchRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?q=[PolaryonID: ${cardId}]`, {
+        const searchRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?privateExtendedProperty=polaryonId=${cardId}`, {
             headers: { 'Authorization': `Bearer ${accessToken}` }
         });
         if (searchRes.ok) {

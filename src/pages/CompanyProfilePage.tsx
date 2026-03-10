@@ -215,8 +215,44 @@ export default function CompanyProfilePage() {
 
             toast.success('Dados da empresa atualizados com sucesso!');
         } catch (error) {
-            console.error("Error fetching CNPJ:", error);
-            toast.error('Erro ao buscar dados do CNPJ na Brasil API.');
+            console.warn("Brasil API falhou, tentando CNPJ.ws fallback...", error);
+            try {
+                const fbResponse = await fetch(`https://publica.cnpj.ws/cnpj/${cleanCnpj}`);
+                if (!fbResponse.ok) throw new Error('Falha no fallback CNPJ.ws');
+                const fbData = await fbResponse.json();
+
+                let porte = formData.porte;
+                if (fbData.estabelecimento?.porte) {
+                    const p = parseInt(fbData.estabelecimento.porte.id);
+                    if (p === 1) porte = 'ME';
+                    else if (p === 3) porte = 'EPP';
+                    else porte = 'Médio';
+                }
+
+                setFormData(prev => ({
+                    ...prev,
+                    razaoSocial: fbData.razao_social || prev.razaoSocial,
+                    nomeFantasia: fbData.estabelecimento?.nome_fantasia || prev.nomeFantasia,
+                    state: fbData.estabelecimento?.estado?.sigla || prev.state,
+                    naturezaJuridica: fbData.natureza_juridica?.descricao || prev.naturezaJuridica,
+                    cep: fbData.estabelecimento?.cep ? fbData.estabelecimento.cep.replace(/([\d]{5})([\d]{3})/, '$1-$2') : prev.cep,
+                    logradouro: fbData.estabelecimento?.logradouro || prev.logradouro,
+                    numero: fbData.estabelecimento?.numero || prev.numero,
+                    complemento: fbData.estabelecimento?.complemento || prev.complemento,
+                    bairro: fbData.estabelecimento?.bairro || prev.bairro,
+                    municipio: fbData.estabelecimento?.cidade?.nome || prev.municipio,
+                    telefone: fbData.estabelecimento?.telefone1 || prev.telefone,
+                    email: fbData.estabelecimento?.email || prev.email,
+                    cnaes: fbData.estabelecimento?.atividade_principal ? [{ code: fbData.estabelecimento.atividade_principal.id, description: fbData.estabelecimento.atividade_principal.descricao }] : prev.cnaes,
+                    porte: porte,
+                    lastSynced: new Date().toISOString(),
+                    dataSource: 'CNPJ.ws (Fallback)',
+                }));
+                toast.success('Dados preenchidos via API Secundária (CNPJ.ws)!');
+            } catch (fbErr) {
+                console.error("Ambas as APIs falharam", fbErr);
+                toast.error('Erro ao buscar dados do CNPJ em todas as APIs. Verifique se o CNPJ é válido.');
+            }
         } finally {
             setIsFetching(false);
         }

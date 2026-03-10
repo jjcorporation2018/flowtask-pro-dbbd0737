@@ -82,8 +82,8 @@ const DocumentForm = ({ onClose, editingDoc }: DocumentFormProps) => {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!formData.title || !formData.expirationDate) {
-            alert('Por favor, preencha o título e a data de vencimento.');
+        if (!formData.title) {
+            alert('Por favor, preencha o título.');
             return;
         }
 
@@ -158,10 +158,9 @@ const DocumentForm = ({ onClose, editingDoc }: DocumentFormProps) => {
                                     />
                                 </div>
                                 <div className="space-y-1">
-                                    <label className="text-xs font-bold text-muted-foreground uppercase">Data de Vencimento *</label>
+                                    <label className="text-xs font-bold text-muted-foreground uppercase">Data de Vencimento</label>
                                     <input
                                         type="date"
-                                        required
                                         value={formData.expirationDate}
                                         onChange={e => setFormData({ ...formData, expirationDate: e.target.value })}
                                         className="w-full bg-background border border-border rounded px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all [&::-webkit-calendar-picker-indicator]:dark:invert"
