@@ -77,7 +77,9 @@ router.post('/google', async (req: Request, res: Response) => {
                 name: user.name,
                 email: user.email,
                 picture: user.picture,
-                role: user.role
+                role: user.role,
+                // @ts-ignore
+                permissions: user.permissions
             }
         });
 

@@ -56,7 +56,13 @@ export const saveTokens = async (code: string) => {
 
 // Simple fetcher using the auth client's access token
 export const fetchGoogleEvents = async () => {
-    const accessToken = (await oauth2Client.getAccessToken()).token;
+    let accessToken: string | null | undefined = null;
+    try {
+        accessToken = (await oauth2Client.getAccessToken()).token;
+    } catch (error: any) {
+        console.error('getAccessToken Error in fetchGoogleEvents:', error.message);
+        throw new Error("NEEDS_AUTH");
+    }
     if (!accessToken) throw new Error("NEEDS_AUTH");
 
     const timeMin = new Date();
@@ -78,7 +84,13 @@ export const fetchGoogleEvents = async () => {
 };
 
 export const pushEventToGoogle = async (event: { summary: string, description?: string, start: { date?: string, dateTime?: string }, end: { date?: string, dateTime?: string } }) => {
-    const accessToken = (await oauth2Client.getAccessToken()).token;
+    let accessToken: string | null | undefined = null;
+    try {
+        accessToken = (await oauth2Client.getAccessToken()).token;
+    } catch (error: any) {
+        console.error('getAccessToken Error in pushEventToGoogle:', error.message);
+        throw new Error("NEEDS_AUTH");
+    }
     if (!accessToken) throw new Error("NEEDS_AUTH");
 
     const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events`, {

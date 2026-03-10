@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 const AppSidebar = () => {
   const { mainCompanies } = useKanbanStore();
   const { isMobileMenuOpen, setMobileMenuOpen } = useUserPrefsStore();
+  const { currentUser, hasScreenAccess } = useAuthStore();
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(true);
 
@@ -207,12 +208,16 @@ const AppSidebar = () => {
               <Link to="/" className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors ${location.pathname === '/' ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium' : 'text-sidebar-foreground hover:bg-sidebar-accent/50'}`} title="Principal">
                 <LayoutGrid className="h-4 w-4 shrink-0" /> {!isCollapsed && <span>Principal</span>}
               </Link>
-              <Link to="/calendar" className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors ${location.pathname === '/calendar' ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium' : 'text-sidebar-foreground hover:bg-sidebar-accent/50'}`} title="Calendário">
-                <Calendar className="h-4 w-4 shrink-0" /> {!isCollapsed && <span>Calendário</span>}
-              </Link>
-              <Link to="/team" className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors ${location.pathname === '/team' ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium' : 'text-sidebar-foreground hover:bg-sidebar-accent/50'}`} title="Equipe e Fluxo">
-                <Users className="h-4 w-4 shrink-0" /> {!isCollapsed && <span>Equipe e Fluxo</span>}
-              </Link>
+              {hasScreenAccess('CALENDAR') && (
+                <Link to="/calendar" className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors ${location.pathname === '/calendar' ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium' : 'text-sidebar-foreground hover:bg-sidebar-accent/50'}`} title="Calendário">
+                  <Calendar className="h-4 w-4 shrink-0" /> {!isCollapsed && <span>Calendário</span>}
+                </Link>
+              )}
+              {hasScreenAccess('TEAM') && (
+                <Link to="/team" className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors ${location.pathname === '/team' ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium' : 'text-sidebar-foreground hover:bg-sidebar-accent/50'}`} title="Equipe e Fluxo">
+                  <Users className="h-4 w-4 shrink-0" /> {!isCollapsed && <span>Equipe e Fluxo</span>}
+                </Link>
+              )}
             </div>
           </>
         )}

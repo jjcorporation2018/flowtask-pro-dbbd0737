@@ -15,6 +15,7 @@ model User {
   picture       String?
   googleId      String?   @unique
   role          String    @default("default") // 'admin', 'default', 'disabled'
+  permissions   Json?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }

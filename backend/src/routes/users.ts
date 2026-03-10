@@ -46,6 +46,8 @@ router.get('/', async (req: AuthRequest, res: Response) => {
                 name: true,
                 picture: true,
                 role: true,
+                // @ts-ignore: permissions will be available after prisma generate on server
+                permissions: true,
                 createdAt: true,
             },
             orderBy: { createdAt: 'desc' }
@@ -57,10 +59,10 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     }
 });
 
-// PUT /api/users/:id/role - Update user role
+// PUT /api/users/:id/role - Update user role and permissions
 router.put('/:id/role', async (req: AuthRequest, res: Response) => {
     const id = req.params.id as string;
-    const { role } = req.body;
+    const { role, permissions } = req.body;
 
     if (!['admin', 'default', 'disabled', 'pending', 'contador'].includes(role)) {
         return res.status(400).json({ error: 'Invalid role provided' });
@@ -72,10 +74,15 @@ router.put('/:id/role', async (req: AuthRequest, res: Response) => {
     }
 
     try {
+        const updateData: any = {};
+        if (role) updateData.role = role;
+        if (permissions !== undefined) updateData.permissions = permissions;
+
         const updatedUser = await prisma.user.update({
             where: { id },
-            data: { role },
-            select: { id: true, email: true, name: true, role: true }
+            data: updateData,
+            // @ts-ignore
+            select: { id: true, email: true, name: true, role: true, permissions: true }
         });
         res.status(200).json(updatedUser);
     } catch (error) {

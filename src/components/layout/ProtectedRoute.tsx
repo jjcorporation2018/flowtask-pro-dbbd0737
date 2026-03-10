@@ -16,13 +16,48 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     useEffect(() => {
         if (!isAuthenticated) {
             navigate('/login', { replace: true, state: { from: location.pathname } });
-        } else if (currentUser?.status === 'disabled' || currentUser?.status === 'invited') {
+            return;
+        }
+
+        if (currentUser?.status === 'disabled' || currentUser?.status === 'invited') {
             useAuthStore.getState().logout();
             navigate('/login', { replace: true });
-        } else if (currentUser?.role === 'CONTADOR') {
-            if (!location.pathname.startsWith('/contabil')) {
+            return;
+        }
+
+        const role = currentUser?.role;
+        const p = location.pathname;
+        const hasScreenAccess = useAuthStore.getState().hasScreenAccess;
+
+        // Forced routes for accountants bypassing normal checks
+        if (role === 'CONTADOR') {
+            if (!p.startsWith('/contabil')) {
                 navigate('/contabil?tab=exportacao', { replace: true });
             }
+            return;
+        }
+
+        // Module checks
+        const accessMap: Record<string, string> = {
+            '/suppliers': 'SUPPLIERS',
+            '/suppliers-list': 'SUPPLIERS',
+            '/transporters-list': 'SUPPLIERS',
+            '/documentacao': 'DOCUMENTATION',
+            '/oportunidades': 'OPORTUNIDADES',
+            '/kunbun': 'KUNBUN',
+            '/folder': 'KUNBUN',
+            '/board': 'KUNBUN',
+            '/calendar': 'CALENDAR',
+            '/team': 'TEAM',
+            '/contabil': 'ACCOUNTING'
+        };
+
+        const requiredScreen = Object.keys(accessMap).find(prefix => p.startsWith(prefix))
+            ? accessMap[Object.keys(accessMap).find(prefix => p.startsWith(prefix))!]
+            : null;
+
+        if (requiredScreen && !hasScreenAccess(requiredScreen)) {
+            navigate('/', { replace: true });
         }
     }, [isAuthenticated, currentUser, navigate, location]);
 

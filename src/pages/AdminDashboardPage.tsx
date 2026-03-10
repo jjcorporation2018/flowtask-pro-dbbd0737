@@ -3,11 +3,23 @@ import { useAuthStore, SystemUser, UserRole } from '@/store/auth-store';
 import { toast } from 'sonner';
 import {
     Users, ShieldAlert, KeyRound, Mail, Trash2,
-    Save, Plus, ShieldCheck, RefreshCcw
+    Save, Plus, ShieldCheck, RefreshCcw, LayoutDashboard, Monitor
 } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import { AuditMetricsDash } from './AuditMetricsDash';
 import api from '@/lib/api';
+
+const AVAILABLE_SCREENS = [
+    { id: 'DASHBOARD', label: 'Painel Inicial' },
+    { id: 'KUNBUN', label: 'Quadros Kanban' },
+    { id: 'OPORTUNIDADES', label: 'Oportunidades' },
+    { id: 'CALENDAR', label: 'Agenda Global' },
+    { id: 'TEAM', label: 'Equipe' },
+    { id: 'SUPPLIERS', label: 'Empresas' },
+    { id: 'DOCUMENTATION', label: 'Documentação' },
+    { id: 'ACCOUNTING', label: 'Contábil' },
+    { id: 'BUDGETS', label: 'Orçamentos Financeiros' }
+];
 
 export default function AdminDashboardPage() {
     const { currentUser, addUser, updateUser, removeUser } = useAuthStore();
@@ -37,11 +49,11 @@ export default function AdminDashboardPage() {
                 name: u.name,
                 photoURL: u.picture,
                 role: u.role.toUpperCase() === 'ADMIN' ? 'ADMIN' : (u.role.toUpperCase() === 'CONTADOR' ? 'CONTADOR' : 'USER'),
-                permissions: u.role === 'admin'
-                    ? { canView: true, canEdit: true, canDownload: true }
+                permissions: u.permissions || (u.role === 'admin'
+                    ? { canView: true, canEdit: true, canDownload: true, allowedScreens: ['ALL'] }
                     : (u.role === 'contador'
-                        ? { canView: true, canEdit: false, canDownload: true }
-                        : { canView: true, canEdit: false, canDownload: false }),
+                        ? { canView: true, canEdit: false, canDownload: true, allowedScreens: ['ACCOUNTING'] }
+                        : { canView: true, canEdit: false, canDownload: false, allowedScreens: ['DASHBOARD', 'KUNBUN', 'OPORTUNIDADES', 'CALENDAR', 'TEAM', 'SUPPLIERS', 'DOCUMENTATION', 'ACCOUNTING', 'BUDGETS'] })),
                 status: u.role === 'disabled' ? 'disabled' : (u.role === 'pending' ? 'invited' : 'active'),
                 createdAt: u.createdAt
             }));
@@ -79,8 +91,51 @@ export default function AdminDashboardPage() {
         setNewName('');
     };
 
-    const togglePermission = (userId: string, perm: keyof SystemUser['permissions']) => {
-        toast.info("Permissões individuais em breve. Por hora defina os Papéis via Nível (Admin/Normal).");
+    const togglePermission = async (userId: string, perm: keyof SystemUser['permissions']) => {
+        const user = systemsUsersDb.find(u => u.id === userId);
+        if (!user) return;
+
+        const newPermissions = {
+            ...user.permissions,
+            [perm]: !user.permissions[perm]
+        };
+
+        try {
+            toast.loading("Atualizando permissão...", { id: `perm-${userId}` });
+            await api.put(`/users/${userId}/role`, { permissions: newPermissions });
+            toast.success("Permissão atualizada na nuvem.", { id: `perm-${userId}` });
+            loadUsers();
+        } catch (error) {
+            console.error(error);
+            toast.error("Falha ao atualizar permissão.", { id: `perm-${userId}` });
+        }
+    };
+
+    const toggleScreenAccess = async (userId: string, screenId: string) => {
+        const user = systemsUsersDb.find(u => u.id === userId);
+        if (!user) return;
+
+        let currentScreens = user.permissions.allowedScreens || [];
+        if (currentScreens.includes('ALL')) return; // Avoid toggling if they have ALL
+
+        const hasScreen = currentScreens.includes(screenId);
+
+        const newScreens = hasScreen
+            ? currentScreens.filter(s => s !== screenId)
+            : [...currentScreens, screenId];
+
+        const newPermissions = {
+            ...user.permissions,
+            allowedScreens: newScreens
+        };
+
+        try {
+            await api.put(`/users/${userId}/role`, { permissions: newPermissions });
+            loadUsers();
+        } catch (error) {
+            console.error(error);
+            toast.error("Falha ao atualizar acesso à tela.");
+        }
     };
 
     const toggleRole = async (userId: string) => {
@@ -300,10 +355,10 @@ export default function AdminDashboardPage() {
                                                 onClick={() => toggleRole(user.id)}
                                                 disabled={isMe}
                                                 className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${user.role === 'ADMIN'
-                                                        ? 'bg-primary/20 text-primary hover:bg-primary/30'
-                                                        : user.role === 'CONTADOR'
-                                                            ? 'bg-amber-500/20 text-amber-500 hover:bg-amber-500/30'
-                                                            : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
+                                                    ? 'bg-primary/20 text-primary hover:bg-primary/30'
+                                                    : user.role === 'CONTADOR'
+                                                        ? 'bg-amber-500/20 text-amber-500 hover:bg-amber-500/30'
+                                                        : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
                                                     } ${isMe ? 'opacity-50 cursor-not-allowed' : ''}`}
                                             >
                                                 <span className="flex items-center gap-1.5 justify-center">
@@ -318,23 +373,43 @@ export default function AdminDashboardPage() {
                                             ) : user.role === 'CONTADOR' ? (
                                                 <span className="text-xs text-muted-foreground italic flex items-center gap-1"><KeyRound className="w-3 h-3" /> Acesso Exportação</span>
                                             ) : (
-                                                <div className="flex items-center gap-3 text-xs">
-                                                    <label className="flex items-center gap-1.5 cursor-pointer">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={user.permissions.canEdit}
-                                                            onChange={() => togglePermission(user.id, 'canEdit')}
-                                                            className="rounded text-primary focus:ring-primary h-3.5 w-3.5 bg-background border-border"
-                                                        /> Escrever
-                                                    </label>
-                                                    <label className="flex items-center gap-1.5 cursor-pointer">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={user.permissions.canDownload}
-                                                            onChange={() => togglePermission(user.id, 'canDownload')}
-                                                            className="rounded text-primary focus:ring-primary h-3.5 w-3.5 bg-background border-border"
-                                                        /> Exportar
-                                                    </label>
+                                                <div className="flex flex-col gap-2">
+                                                    <div className="flex items-center gap-3 text-xs mb-1">
+                                                        <label className="flex items-center gap-1.5 cursor-pointer hover:text-primary transition-colors">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={user.permissions.canEdit}
+                                                                onChange={() => togglePermission(user.id, 'canEdit')}
+                                                                className="rounded text-primary focus:ring-primary h-3.5 w-3.5 bg-background border-border"
+                                                            /> Escrever e Excluir
+                                                        </label>
+                                                        <label className="flex items-center gap-1.5 cursor-pointer hover:text-primary transition-colors">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={user.permissions.canDownload}
+                                                                onChange={() => togglePermission(user.id, 'canDownload')}
+                                                                className="rounded text-primary focus:ring-primary h-3.5 w-3.5 bg-background border-border"
+                                                            /> Exportar Planilhas
+                                                        </label>
+                                                    </div>
+                                                    <div className="flex items-center gap-1 bg-muted/40 p-1.5 rounded-md border border-border/50">
+                                                        <Monitor className="w-3 h-3 text-muted-foreground ml-1" />
+                                                        <div className="flex flex-wrap gap-1 ml-1.5 flex-1">
+                                                            {AVAILABLE_SCREENS.map(screen => {
+                                                                const hasAccess = user.permissions.allowedScreens?.includes('ALL') || user.permissions.allowedScreens?.includes(screen.id);
+                                                                return (
+                                                                    <button
+                                                                        key={screen.id}
+                                                                        onClick={() => toggleScreenAccess(user.id, screen.id)}
+                                                                        className={`text-[9px] px-1.5 py-0.5 rounded transition-colors ${hasAccess ? 'bg-primary/20 text-primary hover:bg-primary/30' : 'bg-background border border-border text-muted-foreground hover:bg-secondary'}`}
+                                                                        title={`Ativar/Desativar: ${screen.label}`}
+                                                                    >
+                                                                        {screen.label}
+                                                                    </button>
+                                                                )
+                                                            })}
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             )}
                                         </td>

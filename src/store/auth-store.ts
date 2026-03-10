@@ -8,6 +8,7 @@ export interface UserPermissions {
     canView: boolean;
     canEdit: boolean;
     canDownload: boolean;
+    allowedScreens?: string[];
 }
 
 export interface SystemUser {
@@ -42,6 +43,7 @@ interface AuthState {
     addUser: (user: Omit<SystemUser, 'id' | 'createdAt'>) => void;
     updateUser: (id: string, updates: Partial<SystemUser>) => void;
     removeUser: (id: string) => void;
+    hasScreenAccess: (screenId: string) => boolean;
 }
 
 const DEFAULT_ADMIN: SystemUser = {
@@ -52,7 +54,8 @@ const DEFAULT_ADMIN: SystemUser = {
     permissions: {
         canView: true,
         canEdit: true,
-        canDownload: true
+        canDownload: true,
+        allowedScreens: ['ALL']
     },
     status: 'active',
     createdAt: new Date().toISOString()
@@ -109,7 +112,7 @@ export const useAuthStore = create<AuthState>()(
                                 ...user,
                                 role: 'ADMIN',
                                 status: 'active',
-                                permissions: { canView: true, canEdit: true, canDownload: true }
+                                permissions: { canView: true, canEdit: true, canDownload: true, allowedScreens: ['ALL'] }
                             };
                             updateUser(user.id, user);
                         }
@@ -121,7 +124,7 @@ export const useAuthStore = create<AuthState>()(
                             name: normalizedEmail.split('@')[0], // Extract name from email as default
                             role: 'ADMIN',
                             status: 'active',
-                            permissions: { canView: true, canEdit: true, canDownload: true },
+                            permissions: { canView: true, canEdit: true, canDownload: true, allowedScreens: ['ALL'] },
                             createdAt: new Date().toISOString()
                         };
                         addUser(newAdmin);
@@ -265,6 +268,12 @@ export const useAuthStore = create<AuthState>()(
                         systemUsers: state.systemUsers.filter(u => u.id !== id)
                     };
                 });
+            },
+            hasScreenAccess: (screenId: string) => {
+                const user = get().currentUser;
+                if (!user) return false;
+                if (user.role === 'ADMIN' || user.permissions?.allowedScreens?.includes('ALL')) return true;
+                return user.permissions?.allowedScreens?.includes(screenId) ?? false;
             }
         }),
         {

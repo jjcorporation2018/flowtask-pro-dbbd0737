@@ -9,8 +9,13 @@ import { motion } from 'framer-motion';
 import { useState, useMemo } from 'react';
 
 const Dashboard = () => {
-  const { currentUser } = useAuthStore();
+  const { currentUser, hasScreenAccess } = useAuthStore();
   const isAdmin = currentUser?.role === 'ADMIN';
+
+  const canKunbun = hasScreenAccess('KUNBUN');
+  const canBudgets = hasScreenAccess('BUDGETS');
+  const canDocs = hasScreenAccess('DOCUMENTATION');
+  const canAccounting = hasScreenAccess('ACCOUNTING');
 
   const folders = useKanbanStore(state => state.folders);
   const boards = useKanbanStore(state => state.boards);
@@ -105,33 +110,40 @@ const Dashboard = () => {
     const events: { id: string; title: string; date: Date; type: string; color: string; icon: React.ElementType }[] = [];
 
     // 1. Kanban Cards
-    upcomingCards.forEach(c => {
-      if (c.dueDate) {
-        events.push({ id: c.id, title: `Tarefa: ${c.title}`, date: new Date(c.dueDate), type: 'tarefa', color: 'text-primary', icon: Clock });
-      }
-    });
+    if (canKunbun) {
+      upcomingCards.forEach(c => {
+        if (c.dueDate) {
+          events.push({ id: c.id, title: `Tarefa: ${c.title}`, date: new Date(c.dueDate), type: 'tarefa', color: 'text-primary', icon: Clock });
+        }
+      });
+    }
 
     // 2. Budgets
-    budgets.filter(b => !b.trashed && b.status === 'Aguardando').forEach(b => {
-      // Usar a data de criação como referência para pendentes
-      const date = new Date(b.createdAt);
-      if (date >= today && date <= futureLimit) {
-        events.push({ id: b.id, title: `Proposta Aguardando: ${b.title}`, date, type: 'orcamento', color: 'text-blue-500', icon: Calculator });
-      }
-    });
+    if (canBudgets) {
+      budgets.filter(b => !b.trashed && b.status === 'Aguardando').forEach(b => {
+        const date = new Date(b.createdAt);
+        if (date >= today && date <= futureLimit) {
+          events.push({ id: b.id, title: `Proposta Aguardando: ${b.title}`, date, type: 'orcamento', color: 'text-blue-500', icon: Calculator });
+        }
+      });
+    }
 
     // 3. Documents
-    documents.filter(d => !d.trashed && new Date(d.expirationDate) >= today && new Date(d.expirationDate) <= futureLimit).forEach(d => {
-      events.push({ id: d.id, title: `Doc Expirando: ${d.title}`, date: new Date(d.expirationDate), type: 'documento', color: 'text-yellow-500', icon: FileText });
-    });
+    if (canDocs) {
+      documents.filter(d => !d.trashed && new Date(d.expirationDate) >= today && new Date(d.expirationDate) <= futureLimit).forEach(d => {
+        events.push({ id: d.id, title: `Doc Expirando: ${d.title}`, date: new Date(d.expirationDate), type: 'documento', color: 'text-yellow-500', icon: FileText });
+      });
+    }
 
     // 4. Accounting (Tax Obligations)
-    taxObligations.filter(t => !t.trashedAt && t.status === 'pending' && new Date(t.dueDate) >= today && new Date(t.dueDate) <= futureLimit).forEach(t => {
-      events.push({ id: t.id, title: `Imposto a Pagar: ${t.name}`, date: new Date(t.dueDate), type: 'contabil', color: 'text-red-500', icon: PiggyBank });
-    });
+    if (canAccounting) {
+      taxObligations.filter(t => !t.trashedAt && t.status === 'pending' && new Date(t.dueDate) >= today && new Date(t.dueDate) <= futureLimit).forEach(t => {
+        events.push({ id: t.id, title: `Imposto a Pagar: ${t.name}`, date: new Date(t.dueDate), type: 'contabil', color: 'text-red-500', icon: PiggyBank });
+      });
+    }
 
     return events.sort((a, b) => a.date.getTime() - b.date.getTime());
-  }, [upcomingCards, budgets, documents, taxObligations]);
+  }, [upcomingCards, budgets, documents, taxObligations, canKunbun, canBudgets, canDocs, canAccounting]);
 
   return (
     <div className="flex-1 overflow-y-auto p-6">
@@ -167,208 +179,220 @@ const Dashboard = () => {
         {/* System-Wide Alerts */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {/* Main Company Info */}
-          <div className="bg-primary/5 rounded-lg p-4 border border-primary/20 flex flex-col gap-2">
-            <div className="flex items-center gap-2 text-primary font-semibold text-sm">
-              <Building2 className="h-4 w-4" /> Administradora Padrão
+          {isAdmin && (
+            <div className="bg-primary/5 rounded-lg p-4 border border-primary/20 flex flex-col gap-2">
+              <div className="flex items-center gap-2 text-primary font-semibold text-sm">
+                <Building2 className="h-4 w-4" /> Administradora Padrão
+              </div>
+              <p className="text-sm font-bold truncate">{defaultCompany?.nomeFantasia || defaultCompany?.razaoSocial || 'Nenhuma definida'}</p>
+              <Link to="/company" className="text-[10px] text-primary hover:underline mt-auto">Gerenciar empresas</Link>
             </div>
-            <p className="text-sm font-bold truncate">{defaultCompany?.nomeFantasia || defaultCompany?.razaoSocial || 'Nenhuma definida'}</p>
-            <Link to="/company" className="text-[10px] text-primary hover:underline mt-auto">Gerenciar empresas</Link>
-          </div>
+          )}
 
           {/* Budgets Alert */}
-          <div className={`rounded-lg p-4 border flex flex-col gap-2 ${pendingBudgets > 0 ? 'bg-blue-500/5 border-blue-500/20' : 'bg-card border-border'}`}>
-            <div className={`flex items-center gap-2 font-semibold text-sm ${pendingBudgets > 0 ? 'text-blue-500' : 'text-muted-foreground'}`}>
-              <Calculator className="h-4 w-4" /> Orçamentos
+          {canBudgets && (
+            <div className={`rounded-lg p-4 border flex flex-col gap-2 ${pendingBudgets > 0 ? 'bg-blue-500/5 border-blue-500/20' : 'bg-card border-border'}`}>
+              <div className={`flex items-center gap-2 font-semibold text-sm ${pendingBudgets > 0 ? 'text-blue-500' : 'text-muted-foreground'}`}>
+                <Calculator className="h-4 w-4" /> Orçamentos
+              </div>
+              <p className="text-sm font-bold">{pendingBudgets} pendentes/em rascunho</p>
+              <Link to="/budgets" className="text-[10px] text-muted-foreground hover:underline mt-auto">Ver orçamentos</Link>
             </div>
-            <p className="text-sm font-bold">{pendingBudgets} pendentes/em rascunho</p>
-            <Link to="/budgets" className="text-[10px] text-muted-foreground hover:underline mt-auto">Ver orçamentos</Link>
-          </div>
+          )}
 
           {/* Documents Alert */}
-          <div className={`rounded-lg p-4 border flex flex-col gap-2 ${expiredDocs > 0 ? 'bg-destructive/10 border-destructive/20' : expiringDocs > 0 ? 'bg-yellow-500/10 border-yellow-500/20' : 'bg-card border-border'}`}>
-            <div className={`flex items-center gap-2 font-semibold text-sm ${expiredDocs > 0 ? 'text-destructive' : expiringDocs > 0 ? 'text-yellow-600' : 'text-muted-foreground'}`}>
-              <FileText className="h-4 w-4" /> Documentação
+          {canDocs && (
+            <div className={`rounded-lg p-4 border flex flex-col gap-2 ${expiredDocs > 0 ? 'bg-destructive/10 border-destructive/20' : expiringDocs > 0 ? 'bg-yellow-500/10 border-yellow-500/20' : 'bg-card border-border'}`}>
+              <div className={`flex items-center gap-2 font-semibold text-sm ${expiredDocs > 0 ? 'text-destructive' : expiringDocs > 0 ? 'text-yellow-600' : 'text-muted-foreground'}`}>
+                <FileText className="h-4 w-4" /> Documentação
+              </div>
+              <p className="text-sm font-bold">
+                {expiredDocs > 0 ? `${expiredDocs} expirados` : expiringDocs > 0 ? `${expiringDocs} expirando em breve` : 'Tudo em dia'}
+              </p>
+              <Link to="/documentacao" className="text-[10px] text-muted-foreground hover:underline mt-auto">Acessar acervo</Link>
             </div>
-            <p className="text-sm font-bold">
-              {expiredDocs > 0 ? `${expiredDocs} expirados` : expiringDocs > 0 ? `${expiringDocs} expirando em breve` : 'Tudo em dia'}
-            </p>
-            <Link to="/documentacao" className="text-[10px] text-muted-foreground hover:underline mt-auto">Acessar acervo</Link>
-          </div>
+          )}
 
           {/* Tax/Accounting Alert */}
-          <div className={`rounded-lg p-4 border flex flex-col gap-2 ${overdueTaxes > 0 ? 'bg-destructive/10 border-destructive/20' : 'bg-card border-border'}`}>
-            <div className={`flex items-center gap-2 font-semibold text-sm ${overdueTaxes > 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
-              <PiggyBank className="h-4 w-4" /> Contábil
-            </div>
-            <p className="text-sm font-bold">
-              {overdueTaxes > 0 ? `${overdueTaxes} guias vencidas` : 'Impostos em dia'}
-            </p>
-            <Link to="/contabil" className="text-[10px] text-muted-foreground hover:underline mt-auto">Painel Financeiro</Link>
-          </div>
-        </div>
-
-        {/* Kanban Stats */}
-        <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
-          <BarChart3 className="h-4 w-4 text-primary" />
-          Métricas de Tarefas
-        </h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {stats.map((s, i) => (
-            <motion.div key={s.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}
-              className="bg-card rounded-lg p-4 border border-border">
-              <div className="flex items-center gap-3">
-                <s.icon className={`h-5 w-5 ${s.color}`} />
-                <div>
-                  <p className="text-xs text-muted-foreground">{s.label}</p>
-                  <p className="text-xl font-bold">{s.value}</p>
-                </div>
+          {canAccounting && (
+            <div className={`rounded-lg p-4 border flex flex-col gap-2 ${overdueTaxes > 0 ? 'bg-destructive/10 border-destructive/20' : 'bg-card border-border'}`}>
+              <div className={`flex items-center gap-2 font-semibold text-sm ${overdueTaxes > 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                <PiggyBank className="h-4 w-4" /> Contábil
               </div>
-            </motion.div>
-          ))}
+              <p className="text-sm font-bold">
+                {overdueTaxes > 0 ? `${overdueTaxes} guias vencidas` : 'Impostos em dia'}
+              </p>
+              <Link to="/contabil" className="text-[10px] text-muted-foreground hover:underline mt-auto">Painel Financeiro</Link>
+            </div>
+          )}
         </div>
 
-        {/* Favorite Boards */}
-        {activeBoards.some(b => b.isFavorite) && (
-          <div className="mb-8">
+        {canKunbun && (
+          <>
+            {/* Kanban Stats */}
             <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
-              <Star className="h-4 w-4 bg-yellow-400 text-white rounded-full p-0.5" fill="currentColor" />
-              Boards Favoritos
+              <BarChart3 className="h-4 w-4 text-primary" />
+              Métricas de Tarefas
             </h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-              {activeBoards.filter(b => b.isFavorite).map((board, i) => (
-                <motion.div key={board.id} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.05 }} className="relative group">
-                  <Link to={`/board/${board.id}`}
-                    className="block rounded-lg h-24 p-4 relative overflow-hidden transition-transform hover:scale-[1.02] bg-cover bg-center border border-border shadow-sm"
-                    style={{ backgroundImage: board.backgroundImage ? `url(${board.backgroundImage})` : 'none', backgroundColor: board.backgroundColor }}>
-                    {board.backgroundImage && (
-                      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-                    )}
-                    <div className="relative z-10 flex flex-col h-full">
-                      <span className="font-bold text-sm text-white drop-shadow-md line-clamp-2">
-                        {board.name}
-                      </span>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+              {stats.map((s, i) => (
+                <motion.div key={s.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}
+                  className="bg-card rounded-lg p-4 border border-border">
+                  <div className="flex items-center gap-3">
+                    <s.icon className={`h-5 w-5 ${s.color}`} />
+                    <div>
+                      <p className="text-xs text-muted-foreground">{s.label}</p>
+                      <p className="text-xl font-bold">{s.value}</p>
                     </div>
-                  </Link>
+                  </div>
                 </motion.div>
               ))}
             </div>
-          </div>
-        )}
 
-
-        <div className="grid lg:grid-cols-3 gap-6 mb-8">
-          {/* Chart */}
-          <div className="lg:col-span-2 bg-card rounded-lg border border-border p-4">
-            <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-primary" />
-              Produtividade Semanal
-            </h2>
-            <div className="h-48">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={weekData}>
-                  <XAxis dataKey="day" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                  <Bar dataKey="criadas" fill="hsl(205, 95%, 33%)" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="concluídas" fill="hsl(145, 63%, 42%)" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Global Upcoming tasks */}
-          <div className="bg-card rounded-lg border border-border p-4 flex flex-col h-full max-h-[300px]">
-            <h2 className="text-sm font-semibold mb-4 flex items-center gap-2 shrink-0">
-              <CalendarDays className="h-4 w-4 text-accent" />
-              Próximas Datas Importantes
-            </h2>
-            <div className="space-y-2 overflow-y-auto custom-scrollbar flex-1 pr-2">
-              {allUpcomingEvents.length === 0 ? (
-                <p className="text-xs text-muted-foreground py-8 text-center flex flex-col items-center gap-2">
-                  <CheckCircle2 className="h-8 w-8 text-muted-foreground/30" />
-                  Nenhum evento global previsto para os próximos 15 dias!
-                </p>
-              ) : (
-                allUpcomingEvents.map(event => {
-                  return (
-                    <div key={`${event.type}-${event.id}`} className="flex items-center gap-2 p-2 rounded text-xs bg-secondary/50 border border-border/50 hover:bg-secondary transition-colors">
-                      <event.icon className={`h-3.5 w-3.5 shrink-0 ${event.color}`} />
-                      <div className="flex-1 truncate font-medium" title={event.title}>{event.title}</div>
-                      <span className={`shrink-0 font-semibold text-muted-foreground`}>
-                        {event.date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                      </span>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Tasks by Board */}
-        <div className="mb-8">
-          <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
-            <Tag className="h-4 w-4 text-primary" />
-            Visão por Board
-          </h2>
-          <div className="grid md:grid-cols-2 gap-4">
-            {Array.from(cardsByBoard.entries()).map(([boardId, boardCards]) => {
-              const board = activeBoards.find(b => b.id === boardId);
-              if (!board) return null;
-              const pending = boardCards.filter(c => !c.completed).length;
-              const done = boardCards.filter(c => c.completed).length;
-              const overdue = boardCards.filter(c => c.dueDate && new Date(c.dueDate) < new Date() && !c.completed).length;
-              return (
-                <Link key={boardId} to={`/board/${boardId}`}
-                  className="bg-card rounded-lg border border-border p-4 hover:border-primary/50 transition-colors">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-3 h-3 rounded-sm" style={{ background: board.backgroundColor }} />
-                    <span className="font-medium text-sm">{board.name}</span>
-                  </div>
-                  <div className="flex gap-4 text-xs">
-                    <span className="text-muted-foreground">Pendentes: <b className="text-foreground">{pending}</b></span>
-                    <span className="text-muted-foreground">Feitas: <b className="text-label-green">{done}</b></span>
-                    {overdue > 0 && <span className="text-label-red font-semibold">Atrasadas: {overdue}</span>}
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Folders */}
-        <div>
-          <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
-            <FolderOpen className="h-4 w-4 text-primary" />
-            Suas Pastas
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {activeFolders.map(folder => {
-              const folderBoards = activeBoards.filter(b => b.folderId === folder.id);
-              const folderCards = activeCards.filter(c => {
-                const list = activeLists.find(l => l.id === c.listId);
-                return list && folderBoards.some(b => b.id === list.boardId);
-              });
-              return (
-                <Link key={folder.id} to={`/folder/${folder.id}`}
-                  className="bg-card rounded-lg border border-border p-4 hover:border-primary/50 transition-colors">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-3 h-3 rounded-sm" style={{ background: folder.color }} />
-                    <span className="font-medium text-sm truncate">{folder.name}</span>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {folderBoards.length} boards · {folderCards.length} tarefas
-                  </div>
-                </Link>
-              );
-            })}
-            {activeFolders.length === 0 && (
-              <p className="text-xs text-muted-foreground col-span-full text-center py-8">
-                Use a barra lateral para criar sua primeira pasta 👈
-              </p>
+            {/* Favorite Boards */}
+            {activeBoards.some(b => b.isFavorite) && (
+              <div className="mb-8">
+                <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
+                  <Star className="h-4 w-4 bg-yellow-400 text-white rounded-full p-0.5" fill="currentColor" />
+                  Boards Favoritos
+                </h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                  {activeBoards.filter(b => b.isFavorite).map((board, i) => (
+                    <motion.div key={board.id} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.05 }} className="relative group">
+                      <Link to={`/board/${board.id}`}
+                        className="block rounded-lg h-24 p-4 relative overflow-hidden transition-transform hover:scale-[1.02] bg-cover bg-center border border-border shadow-sm"
+                        style={{ backgroundImage: board.backgroundImage ? `url(${board.backgroundImage})` : 'none', backgroundColor: board.backgroundColor }}>
+                        {board.backgroundImage && (
+                          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+                        )}
+                        <div className="relative z-10 flex flex-col h-full">
+                          <span className="font-bold text-sm text-white drop-shadow-md line-clamp-2">
+                            {board.name}
+                          </span>
+                        </div>
+                      </Link>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
             )}
-          </div>
-        </div>
+
+
+            <div className="grid lg:grid-cols-3 gap-6 mb-8">
+              {/* Chart */}
+              <div className="lg:col-span-2 bg-card rounded-lg border border-border p-4">
+                <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-primary" />
+                  Produtividade Semanal
+                </h2>
+                <div className="h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={weekData}>
+                      <XAxis dataKey="day" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                      <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                      <Bar dataKey="criadas" fill="hsl(205, 95%, 33%)" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="concluídas" fill="hsl(145, 63%, 42%)" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Global Upcoming tasks */}
+              <div className="bg-card rounded-lg border border-border p-4 flex flex-col h-full max-h-[300px]">
+                <h2 className="text-sm font-semibold mb-4 flex items-center gap-2 shrink-0">
+                  <CalendarDays className="h-4 w-4 text-accent" />
+                  Próximas Datas Importantes
+                </h2>
+                <div className="space-y-2 overflow-y-auto custom-scrollbar flex-1 pr-2">
+                  {allUpcomingEvents.length === 0 ? (
+                    <p className="text-xs text-muted-foreground py-8 text-center flex flex-col items-center gap-2">
+                      <CheckCircle2 className="h-8 w-8 text-muted-foreground/30" />
+                      Nenhum evento global previsto para os próximos 15 dias!
+                    </p>
+                  ) : (
+                    allUpcomingEvents.map(event => {
+                      return (
+                        <div key={`${event.type}-${event.id}`} className="flex items-center gap-2 p-2 rounded text-xs bg-secondary/50 border border-border/50 hover:bg-secondary transition-colors">
+                          <event.icon className={`h-3.5 w-3.5 shrink-0 ${event.color}`} />
+                          <div className="flex-1 truncate font-medium" title={event.title}>{event.title}</div>
+                          <span className={`shrink-0 font-semibold text-muted-foreground`}>
+                            {event.date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Tasks by Board */}
+            <div className="mb-8">
+              <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
+                <Tag className="h-4 w-4 text-primary" />
+                Visão por Board
+              </h2>
+              <div className="grid md:grid-cols-2 gap-4">
+                {Array.from(cardsByBoard.entries()).map(([boardId, boardCards]) => {
+                  const board = activeBoards.find(b => b.id === boardId);
+                  if (!board) return null;
+                  const pending = boardCards.filter(c => !c.completed).length;
+                  const done = boardCards.filter(c => c.completed).length;
+                  const overdue = boardCards.filter(c => c.dueDate && new Date(c.dueDate) < new Date() && !c.completed).length;
+                  return (
+                    <Link key={boardId} to={`/board/${boardId}`}
+                      className="bg-card rounded-lg border border-border p-4 hover:border-primary/50 transition-colors">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-3 h-3 rounded-sm" style={{ background: board.backgroundColor }} />
+                        <span className="font-medium text-sm">{board.name}</span>
+                      </div>
+                      <div className="flex gap-4 text-xs">
+                        <span className="text-muted-foreground">Pendentes: <b className="text-foreground">{pending}</b></span>
+                        <span className="text-muted-foreground">Feitas: <b className="text-label-green">{done}</b></span>
+                        {overdue > 0 && <span className="text-label-red font-semibold">Atrasadas: {overdue}</span>}
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Folders */}
+            <div>
+              <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
+                <FolderOpen className="h-4 w-4 text-primary" />
+                Suas Pastas
+              </h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {activeFolders.map(folder => {
+                  const folderBoards = activeBoards.filter(b => b.folderId === folder.id);
+                  const folderCards = activeCards.filter(c => {
+                    const list = activeLists.find(l => l.id === c.listId);
+                    return list && folderBoards.some(b => b.id === list.boardId);
+                  });
+                  return (
+                    <Link key={folder.id} to={`/folder/${folder.id}`}
+                      className="bg-card rounded-lg border border-border p-4 hover:border-primary/50 transition-colors">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-3 h-3 rounded-sm" style={{ background: folder.color }} />
+                        <span className="font-medium text-sm truncate">{folder.name}</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {folderBoards.length} boards · {folderCards.length} tarefas
+                      </div>
+                    </Link>
+                  );
+                })}
+                {activeFolders.length === 0 && (
+                  <p className="text-xs text-muted-foreground col-span-full text-center py-8">
+                    Nenhuma pasta ativa
+                  </p>
+                )}
+              </div>
+            </div>
+          </>
+        )}
       </motion.div >
     </div >
   );
