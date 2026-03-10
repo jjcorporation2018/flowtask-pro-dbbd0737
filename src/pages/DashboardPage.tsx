@@ -136,13 +136,14 @@ const Dashboard = () => {
       return new Date(parseInt(y), parseInt(m) - 1, parseInt(d, 10));
     };
 
-    const events: { id: string; title: string; date: Date; type: string; color: string; icon: React.ElementType }[] = [];
+    const events: { id: string; title: string; date: Date; type: string; color: string; icon: React.ElementType; url?: string }[] = [];
 
     // 1. Kanban Cards
     if (canKunbun) {
       upcomingCards.forEach(c => {
         if (c.dueDate) {
-          events.push({ id: c.id, title: `Tarefa: ${c.title}`, date: safeDateObject(c.dueDate), type: 'tarefa', color: 'text-primary', icon: Clock });
+          const list = activeLists.find(l => l.id === c.listId);
+          events.push({ id: c.id, title: `Tarefa: ${c.title}`, date: safeDateObject(c.dueDate), type: 'tarefa', color: 'text-primary', icon: Clock, url: list?.boardId ? `/board/${list.boardId}` : '' });
         }
       });
     }
@@ -152,7 +153,7 @@ const Dashboard = () => {
       budgets.filter(b => !b.trashed && b.status === 'Aguardando').forEach(b => {
         const date = safeDateObject(b.createdAt);
         if (date >= today && date <= futureLimit) {
-          events.push({ id: b.id, title: `Proposta Aguardando: ${b.title}`, date, type: 'orcamento', color: 'text-blue-500', icon: Calculator });
+          events.push({ id: b.id, title: `Proposta Aguardando: ${b.title}`, date, type: 'orcamento', color: 'text-blue-500', icon: Calculator, url: '/budgets' });
         }
       });
     }
@@ -160,14 +161,14 @@ const Dashboard = () => {
     // 3. Documents
     if (canDocs) {
       documents.filter(d => !d.trashed && safeDateObject(d.expirationDate) >= today && safeDateObject(d.expirationDate) <= futureLimit).forEach(d => {
-        events.push({ id: d.id, title: `Doc Expirando: ${d.title}`, date: safeDateObject(d.expirationDate), type: 'documento', color: 'text-yellow-500', icon: FileText });
+        events.push({ id: d.id, title: `Doc Expirando: ${d.title}`, date: safeDateObject(d.expirationDate), type: 'documento', color: 'text-yellow-500', icon: FileText, url: '/documentacao' });
       });
     }
 
     // 4. Accounting (Tax Obligations)
     if (canAccounting) {
       taxObligations.filter(t => !t.trashedAt && t.status === 'pending' && safeDateObject(t.dueDate) >= today && safeDateObject(t.dueDate) <= futureLimit).forEach(t => {
-        events.push({ id: t.id, title: `Imposto a Pagar: ${t.name}`, date: safeDateObject(t.dueDate), type: 'contabil', color: 'text-red-500', icon: PiggyBank });
+        events.push({ id: t.id, title: `Imposto a Pagar: ${t.name}`, date: safeDateObject(t.dueDate), type: 'contabil', color: 'text-red-500', icon: PiggyBank, url: '/contabil' });
       });
     }
 
@@ -335,7 +336,7 @@ const Dashboard = () => {
               </div>
 
               {/* Global Upcoming tasks */}
-              <div className="bg-card rounded-lg border border-border p-4 flex flex-col h-full max-h-[300px]">
+              <div className="bg-card rounded-lg border border-border p-4 flex flex-col h-full min-h-[400px]">
                 <h2 className="text-sm font-semibold mb-4 flex items-center gap-2 shrink-0">
                   <CalendarDays className="h-4 w-4 text-accent" />
                   Próximas Datas Importantes
@@ -348,14 +349,15 @@ const Dashboard = () => {
                     </p>
                   ) : (
                     allUpcomingEvents.map(event => {
+                      const Wrapper = event.url ? Link : 'div';
                       return (
-                        <div key={`${event.type}-${event.id}`} className="flex items-center gap-2 p-2 rounded text-xs bg-secondary/50 border border-border/50 hover:bg-secondary transition-colors">
+                        <Wrapper key={`${event.type}-${event.id}`} to={event.url as any} className={`flex items-center gap-2 p-2 rounded text-xs bg-secondary/50 border border-border/50 hover:bg-secondary transition-colors ${event.url ? 'cursor-pointer' : ''}`}>
                           <event.icon className={`h-3.5 w-3.5 shrink-0 ${event.color}`} />
                           <div className="flex-1 truncate font-medium" title={event.title}>{event.title}</div>
                           <span className={`shrink-0 font-semibold text-muted-foreground`}>
                             {event.date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
                           </span>
-                        </div>
+                        </Wrapper>
                       );
                     })
                   )}

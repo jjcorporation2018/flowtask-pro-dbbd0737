@@ -103,14 +103,27 @@ export const pushEventToGoogle = async (
     let existingEventId = null;
     if (cardId) {
         try {
-            // privateExtendedProperty is perfect for programmatic associations without mangling descriptions
-            const searchRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?privateExtendedProperty=polaryonId=${cardId}`, {
+            // First check by standard extended property
+            let searchRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?privateExtendedProperty=polaryonId=${cardId}`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` }
             });
             if (searchRes.ok) {
                 const searchData = await searchRes.json();
                 if (searchData.items && searchData.items.length > 0) {
                     existingEventId = searchData.items[0].id;
+                }
+            }
+
+            // Fallback for legacy events created before extendedProperties fix
+            if (!existingEventId) {
+                searchRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?q=[PolaryonID: ${cardId}]`, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                if (searchRes.ok) {
+                    const searchData = await searchRes.json();
+                    if (searchData.items && searchData.items.length > 0) {
+                        existingEventId = searchData.items[0].id;
+                    }
                 }
             }
         } catch (e) {
@@ -155,18 +168,35 @@ export const deleteEventFromGoogle = async (cardId: string) => {
     if (!accessToken) return;
 
     try {
-        const searchRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?privateExtendedProperty=polaryonId=${cardId}`, {
+        let existingEventId = null;
+
+        let searchRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?privateExtendedProperty=polaryonId=${cardId}`, {
             headers: { 'Authorization': `Bearer ${accessToken}` }
         });
         if (searchRes.ok) {
             const searchData = await searchRes.json();
             if (searchData.items && searchData.items.length > 0) {
-                const existingEventId = searchData.items[0].id;
-                await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${existingEventId}`, {
-                    method: 'DELETE',
-                    headers: { 'Authorization': `Bearer ${accessToken}` }
-                });
+                existingEventId = searchData.items[0].id;
             }
+        }
+
+        if (!existingEventId) {
+            searchRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?q=[PolaryonID: ${cardId}]`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+            if (searchRes.ok) {
+                const searchData = await searchRes.json();
+                if (searchData.items && searchData.items.length > 0) {
+                    existingEventId = searchData.items[0].id;
+                }
+            }
+        }
+
+        if (existingEventId) {
+            await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${existingEventId}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
         }
     } catch (e) {
         console.error("Error deleting existing Google Event:", e);
