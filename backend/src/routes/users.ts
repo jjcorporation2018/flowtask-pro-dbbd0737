@@ -64,7 +64,7 @@ router.put('/:id/role', async (req: AuthRequest, res: Response) => {
     const id = req.params.id as string;
     const { role, permissions } = req.body;
 
-    if (!['admin', 'default', 'disabled', 'pending', 'contador'].includes(role)) {
+    if (role !== undefined && !['admin', 'default', 'disabled', 'pending', 'contador'].includes(role)) {
         return res.status(400).json({ error: 'Invalid role provided' });
     }
 

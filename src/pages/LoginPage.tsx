@@ -269,7 +269,7 @@ export default function LoginPage() {
                                         title="Resolva o CAPTCHA primeiro"
                                     />
                                 )}
-                                <div className={`w-full transition-opacity duration-300 ${!isCaptchaValid && window.location.hostname !== 'localhost' ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
+                                <div className={`w-full flex justify-center transition-opacity duration-300 ${!isCaptchaValid && window.location.hostname !== 'localhost' ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
                                     <GoogleLogin
                                         onSuccess={handleGoogleSuccess}
                                         onError={() => {

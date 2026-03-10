@@ -54,7 +54,7 @@ router.post('/sync', async (req: Request, res: Response) => {
 
         res.status(200).json({ success: true, events: mappedEvents });
     } catch (err: any) {
-        if (err.message === 'NEEDS_AUTH') {
+        if (err.message === 'NEEDS_AUTH' || err?.message?.includes('No refresh token')) {
             return res.status(401).json({ error: 'NEEDS_AUTH', authUrl: getAuthUrl() });
         }
         console.error("Sync Error:", err);
