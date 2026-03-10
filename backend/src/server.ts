@@ -13,6 +13,7 @@ const PORT = process.env.PORT || 3000;
 import authRoutes from './routes/auth';
 import usersRoutes from './routes/users';
 import calendarRoutes from './routes/calendar';
+import kanbanRoutes from './routes/kanban';
 
 // Security and Parsing Middlewares
 app.use(helmet());
@@ -39,6 +40,7 @@ app.get('/health', async (req: Request, res: Response) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/calendar', calendarRoutes);
+app.use('/api/kanban', kanbanRoutes);
 
 // Start Server
 app.listen(PORT, () => {

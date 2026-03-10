@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { Folder, Board, KanbanList, Card, Label, DEFAULT_LABELS, ChecklistItem, Comment, Attachment, WorkspaceMember, Notification, Company, Route, Budget, MainCompanyProfile } from '@/types/kanban';
 import { useAuditStore } from './audit-store';
 import { useAuthStore } from './auth-store';
+import api from '@/lib/api';
 
 const uid = () => crypto.randomUUID();
 
@@ -89,6 +90,7 @@ interface KanbanState {
   startTimer: (cardId: string) => void;
   stopTimer: (cardId: string) => void;
   resetTimer: (cardId: string) => void;
+  fetchKanbanData: () => Promise<void>;
 }
 
 export const useKanbanStore = create<KanbanState>()(
@@ -107,6 +109,22 @@ export const useKanbanStore = create<KanbanState>()(
       notifications: [],
       undoAction: null,
       recentMilestoneTitles: [],
+
+      fetchKanbanData: async () => {
+        try {
+          const res = await api.get('/kanban/sync');
+          if (res.data) {
+            set({
+              folders: res.data.folders || [],
+              boards: res.data.boards || [],
+              lists: res.data.lists || [],
+              cards: res.data.cards || [],
+            });
+          }
+        } catch (error) {
+          console.error("Failed to load Kanban data from DB:", error);
+        }
+      },
 
       addNotification: (title, message, link, type = 'info', targetUserId) => set(s => ({
         notifications: [{ id: uid(), title, message, link, read: false, createdAt: new Date().toISOString(), type, userId: targetUserId }, ...s.notifications]
@@ -320,119 +338,147 @@ export const useKanbanStore = create<KanbanState>()(
       }),
 
       // Folders
-      addFolder: (name, color = '#026AA7', sideImage) => set(s => ({
-        folders: [...s.folders, { id: uid(), name, color, icon: '📁', sideImage, createdAt: new Date().toISOString() }]
-      })),
-      updateFolder: (id, data) => set(s => ({
-        folders: s.folders.map(f => {
-          if (f.id === id) {
-            const isTrashing = data.trashed === true && !f.trashed;
-            return {
-              ...f,
-              ...data,
-              trashedAt: isTrashing ? new Date().toISOString() : (data.trashed === false ? undefined : f.trashedAt)
+      addFolder: (name, color = '#026AA7', sideImage) => {
+        const newFolder = { id: uid(), name, color, icon: '📁', sideImage, createdAt: new Date().toISOString() };
+        set(s => ({ folders: [...s.folders, newFolder] }));
+        api.post('/kanban/folders', newFolder).catch(console.error);
+      },
+      updateFolder: (id, data) => {
+        set(s => ({
+          folders: s.folders.map(f => {
+            if (f.id === id) {
+              const isTrashing = data.trashed === true && !f.trashed;
+              return {
+                ...f,
+                ...data,
+                trashedAt: isTrashing ? new Date().toISOString() : (data.trashed === false ? undefined : f.trashedAt)
+              }
             }
+            return f;
+          })
+        }));
+        api.put(`/kanban/folders/${id}`, data).catch(console.error);
+      },
+      deleteFolder: (id) => {
+        set(s => {
+          const currentUser = useAuthStore.getState().currentUser;
+          const target = s.folders.find(f => f.id === id);
+          if (currentUser && target) {
+            useAuditStore.getState().addLog({
+              userId: currentUser.id,
+              userName: currentUser.name,
+              action: 'EXCLUIR',
+              entity: 'QUADRO/LISTA',
+              details: `Excluiu permanentemente a pasta "${target.name}"`
+            });
           }
-          return f;
-        })
-      })),
-      deleteFolder: (id) => set(s => {
-        const currentUser = useAuthStore.getState().currentUser;
-        const target = s.folders.find(f => f.id === id);
-        if (currentUser && target) {
-          useAuditStore.getState().addLog({
-            userId: currentUser.id,
-            userName: currentUser.name,
-            action: 'EXCLUIR',
-            entity: 'QUADRO/LISTA',
-            details: `Excluiu permanentemente a pasta "${target.name}"`
-          });
-        }
 
-        const boardIds = s.boards.filter(b => b.folderId === id).map(b => b.id);
-        const listIds = s.lists.filter(l => boardIds.includes(l.boardId)).map(l => l.id);
-        return {
-          folders: s.folders.map(f => f.id === id ? { ...f, trashed: true, trashedAt: new Date().toISOString() } : f),
-          boards: s.boards.map(b => boardIds.includes(b.id) ? { ...b, trashed: true, trashedAt: new Date().toISOString() } : b),
-          lists: s.lists.map(l => listIds.includes(l.id) ? { ...l, trashed: true, trashedAt: new Date().toISOString() } : l),
-          cards: s.cards.map(c => listIds.includes(c.listId) ? { ...c, trashed: true, trashedAt: new Date().toISOString() } : c),
-        };
-      }),
+          const boardIds = s.boards.filter(b => b.folderId === id).map(b => b.id);
+          const listIds = s.lists.filter(l => boardIds.includes(l.boardId)).map(l => l.id);
+          return {
+            folders: s.folders.map(f => f.id === id ? { ...f, trashed: true, trashedAt: new Date().toISOString() } : f),
+            boards: s.boards.map(b => boardIds.includes(b.id) ? { ...b, trashed: true, trashedAt: new Date().toISOString() } : b),
+            lists: s.lists.map(l => listIds.includes(l.id) ? { ...l, trashed: true, trashedAt: new Date().toISOString() } : l),
+            cards: s.cards.map(c => listIds.includes(c.listId) ? { ...c, trashed: true, trashedAt: new Date().toISOString() } : c),
+          };
+        });
+        api.put(`/kanban/folders/${id}`, { trashed: true }).catch(console.error);
+      },
 
       // Boards
-      addBoard: (folderId, name, color = '#026AA7') => set(s => ({
-        boards: [...s.boards, { id: uid(), folderId, name, backgroundColor: color, createdAt: new Date().toISOString() }]
-      })),
-      updateBoard: (id, data) => set(s => ({
-        boards: s.boards.map(b => {
-          if (b.id === id) {
-            const isTrashing = data.trashed === true && !b.trashed;
-            return {
-              ...b,
-              ...data,
-              trashedAt: isTrashing ? new Date().toISOString() : (data.trashed === false ? undefined : b.trashedAt)
+      addBoard: (folderId, name, color = '#026AA7') => {
+        const newBoard = { id: uid(), folderId, name, backgroundColor: color, createdAt: new Date().toISOString() };
+        set(s => ({ boards: [...s.boards, newBoard] }));
+        api.post('/kanban/boards', newBoard).catch(console.error);
+      },
+      updateBoard: (id, data) => {
+        set(s => ({
+          boards: s.boards.map(b => {
+            if (b.id === id) {
+              const isTrashing = data.trashed === true && !b.trashed;
+              return {
+                ...b,
+                ...data,
+                trashedAt: isTrashing ? new Date().toISOString() : (data.trashed === false ? undefined : b.trashedAt)
+              }
             }
+            return b;
+          })
+        }));
+        api.put(`/kanban/boards/${id}`, data).catch(console.error);
+      },
+      deleteBoard: (id) => {
+        set(s => {
+          const currentUser = useAuthStore.getState().currentUser;
+          const target = s.boards.find(b => b.id === id);
+          if (currentUser && target) {
+            useAuditStore.getState().addLog({
+              userId: currentUser.id,
+              userName: currentUser.name,
+              action: 'EXCLUIR',
+              entity: 'QUADRO/LISTA',
+              details: `Excluiu permanentemente o quadro "${target.name}"`
+            });
           }
-          return b;
-        })
-      })),
-      deleteBoard: (id) => set(s => {
-        const currentUser = useAuthStore.getState().currentUser;
-        const target = s.boards.find(b => b.id === id);
-        if (currentUser && target) {
-          useAuditStore.getState().addLog({
-            userId: currentUser.id,
-            userName: currentUser.name,
-            action: 'EXCLUIR',
-            entity: 'QUADRO/LISTA',
-            details: `Excluiu permanentemente o quadro "${target.name}"`
-          });
-        }
 
-        const listIds = s.lists.filter(l => l.boardId === id).map(l => l.id);
-        return {
-          boards: s.boards.map(b => b.id === id ? { ...b, trashed: true, trashedAt: new Date().toISOString() } : b),
-          lists: s.lists.map(l => l.boardId === id ? { ...l, trashed: true, trashedAt: new Date().toISOString() } : l),
-          cards: s.cards.map(c => listIds.includes(c.listId) ? { ...c, trashed: true, trashedAt: new Date().toISOString() } : c),
-        };
-      }),
+          const listIds = s.lists.filter(l => l.boardId === id).map(l => l.id);
+          return {
+            boards: s.boards.map(b => b.id === id ? { ...b, trashed: true, trashedAt: new Date().toISOString() } : b),
+            lists: s.lists.map(l => l.boardId === id ? { ...l, trashed: true, trashedAt: new Date().toISOString() } : l),
+            cards: s.cards.map(c => listIds.includes(c.listId) ? { ...c, trashed: true, trashedAt: new Date().toISOString() } : c),
+          };
+        });
+        api.put(`/kanban/boards/${id}`, { trashed: true }).catch(console.error);
+      },
 
       // Lists
-      addList: (boardId, title) => set(s => {
-        const maxPos = Math.max(0, ...s.lists.filter(l => l.boardId === boardId).map(l => l.position));
-        return { lists: [...s.lists, { id: uid(), boardId, title, position: maxPos + 1 }] };
-      }),
-      updateList: (id, data) => set(s => ({
-        lists: s.lists.map(l => {
-          if (l.id === id) {
-            const isTrashing = data.trashed === true && !l.trashed;
-            return {
-              ...l,
-              ...data,
-              trashedAt: isTrashing ? new Date().toISOString() : (data.trashed === false ? undefined : l.trashedAt)
+      addList: (boardId, title) => {
+        const newListId = uid();
+        let createdList: any;
+        set(s => {
+          const maxPos = Math.max(0, ...s.lists.filter(l => l.boardId === boardId).map(l => l.position));
+          createdList = { id: newListId, boardId, title, position: maxPos + 1 };
+          return { lists: [...s.lists, createdList] };
+        });
+        api.post('/kanban/lists', createdList).catch(console.error);
+      },
+      updateList: (id, data) => {
+        set(s => ({
+          lists: s.lists.map(l => {
+            if (l.id === id) {
+              const isTrashing = data.trashed === true && !l.trashed;
+              return {
+                ...l,
+                ...data,
+                trashedAt: isTrashing ? new Date().toISOString() : (data.trashed === false ? undefined : l.trashedAt)
+              }
             }
+            return l;
+          })
+        }));
+        api.put(`/kanban/lists/${id}`, data).catch(console.error);
+      },
+      deleteList: (id) => {
+        set(s => {
+          const currentUser = useAuthStore.getState().currentUser;
+          const target = s.lists.find(l => l.id === id);
+          if (currentUser && target) {
+            useAuditStore.getState().addLog({
+              userId: currentUser.id,
+              userName: currentUser.name,
+              action: 'EXCLUIR',
+              entity: 'QUADRO/LISTA',
+              details: `Excluiu permanentemente a lista "${target.title}"`
+            });
           }
-          return l;
-        })
-      })),
-      deleteList: (id) => set(s => {
-        const currentUser = useAuthStore.getState().currentUser;
-        const target = s.lists.find(l => l.id === id);
-        if (currentUser && target) {
-          useAuditStore.getState().addLog({
-            userId: currentUser.id,
-            userName: currentUser.name,
-            action: 'EXCLUIR',
-            entity: 'QUADRO/LISTA',
-            details: `Excluiu permanentemente a lista "${target.title}"`
-          });
-        }
 
-        return {
-          lists: s.lists.map(l => l.id === id ? { ...l, trashed: true, trashedAt: new Date().toISOString() } : l),
-          cards: s.cards.map(c => c.listId === id ? { ...c, trashed: true, trashedAt: new Date().toISOString() } : c),
-        };
-      }),
+          return {
+            lists: s.lists.map(l => l.id === id ? { ...l, trashed: true, trashedAt: new Date().toISOString() } : l),
+            cards: s.cards.map(c => c.listId === id ? { ...c, trashed: true, trashedAt: new Date().toISOString() } : c),
+          };
+        });
+        api.put(`/kanban/lists/${id}`, { trashed: true }).catch(console.error);
+      },
       reorderLists: (boardId, listIds) => set(s => ({
         lists: s.lists.map(l => {
           if (l.boardId !== boardId) return l;
@@ -442,124 +488,139 @@ export const useKanbanStore = create<KanbanState>()(
       })),
 
       // Cards
-      addCard: (listId, title) => set(s => {
-        const currentUser = useAuthStore.getState().currentUser;
-        const targetList = s.lists.find(l => l.id === listId);
+      addCard: (listId, title) => {
+        let createdCard: any;
+        set(s => {
+          const currentUser = useAuthStore.getState().currentUser;
+          const targetList = s.lists.find(l => l.id === listId);
 
-        if (currentUser && targetList) {
-          useAuditStore.getState().addLog({
-            userId: currentUser.id,
-            userName: currentUser.name,
-            action: 'CRIAR',
-            entity: 'CARTÃO',
-            details: `Criou cartão "${title}" na lista "${targetList.title}"`
-          });
-        }
+          if (currentUser && targetList) {
+            useAuditStore.getState().addLog({
+              userId: currentUser.id,
+              userName: currentUser.name,
+              action: 'CRIAR',
+              entity: 'CARTÃO',
+              details: `Criou cartão "${title}" na lista "${targetList.title}"`
+            });
+          }
 
-        const maxPos = Math.max(0, ...s.cards.filter(c => c.listId === listId).map(c => c.position));
-        return {
-          cards: [...s.cards, {
+          const maxPos = Math.max(0, ...s.cards.filter(c => c.listId === listId).map(c => c.position));
+          createdCard = {
             id: uid(), listId, title, summary: '', description: '', position: maxPos + 1,
             labels: [], checklist: [], comments: [], completed: false,
             archived: false, trashed: false,
             attachments: [], timeEntries: [], createdAt: new Date().toISOString(),
-          }]
-        };
-      }),
-      updateCard: (id, data) => set(s => {
-        const currentUser = useAuthStore.getState().currentUser;
-        const targetCard = s.cards.find(c => c.id === id);
+          };
 
-        if (currentUser && targetCard) {
-          let details = `Atualizou dados do cartão "${targetCard.title}"`;
+          return {
+            cards: [...s.cards, createdCard]
+          };
+        });
+        api.post('/kanban/cards', createdCard).catch(console.error);
+      },
+      updateCard: (id, data) => {
+        set(s => {
+          const currentUser = useAuthStore.getState().currentUser;
+          const targetCard = s.cards.find(c => c.id === id);
 
-          // Do not log timer tick updates to prevent spamming the logs
-          if (data.trashed !== undefined) {
-            useAuditStore.getState().addLog({
-              userId: currentUser.id,
-              userName: currentUser.name,
-              action: data.trashed ? 'EXCLUIR' : 'EDITAR',
-              entity: 'CARTÃO',
-              details: data.trashed ? `Moveu o cartão "${targetCard.title}" para a Lixeira` : `Restaurou o cartão "${targetCard.title}" da Lixeira`
-            });
-          } else if (!data.timeEntries) {
-            useAuditStore.getState().addLog({
-              userId: currentUser.id,
-              userName: currentUser.name,
-              action: 'EDITAR',
-              entity: 'CARTÃO',
-              details
-            });
-          }
-        }
+          if (currentUser && targetCard) {
+            let details = `Atualizou dados do cartão "${targetCard.title}"`;
 
-        let updatedBudgets = s.budgets;
-
-        if (data.trashed !== undefined || data.archived !== undefined) {
-          updatedBudgets = s.budgets.map(b => {
-            if (b.cardId === id) {
-              return {
-                ...b,
-                ...(data.trashed !== undefined ? { trashed: data.trashed, trashedAt: data.trashed ? new Date().toISOString() : undefined } : {}),
-                ...(data.archived !== undefined ? { archived: data.archived } : {}),
-              };
-            }
-            return b;
-          });
-        }
-
-        return {
-          cards: s.cards.map(c => {
-            if (c.id === id) {
-              const isTrashing = data.trashed === true && !c.trashed;
-              return {
-                ...c,
-                ...data,
-                trashedAt: isTrashing ? new Date().toISOString() : (data.trashed === false ? undefined : c.trashedAt)
-              };
-            }
-            return c;
-          }),
-          budgets: updatedBudgets
-        };
-      }),
-      deleteCard: (id) => set(s => ({
-        cards: s.cards.map(c => c.id === id ? { ...c, trashed: true, trashedAt: new Date().toISOString() } : c),
-        budgets: s.budgets.map(b => b.cardId === id ? { ...b, trashed: true, trashedAt: new Date().toISOString() } : b)
-      })),
-      moveCard: (cardId, toListId, newPosition) => set(s => {
-        const currentUser = useAuthStore.getState().currentUser;
-        const targetCard = s.cards.find(c => c.id === cardId);
-        const targetList = s.lists.find(l => l.id === toListId);
-
-        if (currentUser && targetCard && targetList) {
-          // Only log if the list actually changed, otherwise it's just a visual reorder within the same list
-          if (targetCard.listId !== toListId) {
-            useAuditStore.getState().addLog({
-              userId: currentUser.id,
-              userName: currentUser.name,
-              action: 'MOVER',
-              entity: 'CARTÃO',
-              details: `Moveu "${targetCard.title}" para a fase/lista "${targetList.title}"`
-            });
-
-            // Adicionar Notificação
-            if (targetCard.assignee && targetCard.assignee !== currentUser.id) {
-              get().addNotification(
-                'Cartão Movido',
-                `"${targetCard.title}" avançou para ${targetList.title}`,
-                `/board/${targetList.boardId}`,
-                'info',
-                targetCard.assignee
-              );
+            // Do not log timer tick updates to prevent spamming the logs
+            if (data.trashed !== undefined) {
+              useAuditStore.getState().addLog({
+                userId: currentUser.id,
+                userName: currentUser.name,
+                action: data.trashed ? 'EXCLUIR' : 'EDITAR',
+                entity: 'CARTÃO',
+                details: data.trashed ? `Moveu o cartão "${targetCard.title}" para a Lixeira` : `Restaurou o cartão "${targetCard.title}" da Lixeira`
+              });
+            } else if (!data.timeEntries) {
+              useAuditStore.getState().addLog({
+                userId: currentUser.id,
+                userName: currentUser.name,
+                action: 'EDITAR',
+                entity: 'CARTÃO',
+                details
+              });
             }
           }
-        }
 
-        return {
-          cards: s.cards.map(c => c.id === cardId ? { ...c, listId: toListId, position: newPosition } : c)
-        }
-      }),
+          let updatedBudgets = s.budgets;
+
+          if (data.trashed !== undefined || data.archived !== undefined) {
+            updatedBudgets = s.budgets.map(b => {
+              if (b.cardId === id) {
+                return {
+                  ...b,
+                  ...(data.trashed !== undefined ? { trashed: data.trashed, trashedAt: data.trashed ? new Date().toISOString() : undefined } : {}),
+                  ...(data.archived !== undefined ? { archived: data.archived } : {}),
+                };
+              }
+              return b;
+            });
+          }
+
+          return {
+            cards: s.cards.map(c => {
+              if (c.id === id) {
+                const isTrashing = data.trashed === true && !c.trashed;
+                return {
+                  ...c,
+                  ...data,
+                  trashedAt: isTrashing ? new Date().toISOString() : (data.trashed === false ? undefined : c.trashedAt)
+                };
+              }
+              return c;
+            }),
+            budgets: updatedBudgets
+          };
+        });
+        api.put(`/kanban/cards/${id}`, data).catch(console.error);
+      },
+      deleteCard: (id) => {
+        set(s => ({
+          cards: s.cards.map(c => c.id === id ? { ...c, trashed: true, trashedAt: new Date().toISOString() } : c),
+          budgets: s.budgets.map(b => b.cardId === id ? { ...b, trashed: true, trashedAt: new Date().toISOString() } : b)
+        }));
+        api.put(`/kanban/cards/${id}`, { trashed: true }).catch(console.error);
+      },
+      moveCard: (cardId, toListId, newPosition) => {
+        set(s => {
+          const currentUser = useAuthStore.getState().currentUser;
+          const targetCard = s.cards.find(c => c.id === cardId);
+          const targetList = s.lists.find(l => l.id === toListId);
+
+          if (currentUser && targetCard && targetList) {
+            // Only log if the list actually changed, otherwise it's just a visual reorder within the same list
+            if (targetCard.listId !== toListId) {
+              useAuditStore.getState().addLog({
+                userId: currentUser.id,
+                userName: currentUser.name,
+                action: 'MOVER',
+                entity: 'CARTÃO',
+                details: `Moveu "${targetCard.title}" para a fase/lista "${targetList.title}"`
+              });
+
+              // Adicionar Notificação
+              if (targetCard.assignee && targetCard.assignee !== currentUser.id) {
+                get().addNotification(
+                  'Cartão Movido',
+                  `"${targetCard.title}" avançou para ${targetList.title}`,
+                  `/board/${targetList.boardId}`,
+                  'info',
+                  targetCard.assignee
+                );
+              }
+            }
+          }
+
+          return {
+            cards: s.cards.map(c => c.id === cardId ? { ...c, listId: toListId, position: newPosition } : c)
+          }
+        });
+        api.put(`/kanban/cards/${cardId}`, { listId: toListId, position: newPosition }).catch(console.error);
+      },
       reorderCards: (listId, cardIds) => set(s => ({
         cards: s.cards.map(c => {
           if (c.listId !== listId) return c;

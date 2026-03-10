@@ -41,7 +41,7 @@ import { useEssentialDocumentStore } from '@/store/essential-document-store';
 import { useCertificateStore } from '@/store/certificate-store';
 
 const AppContent = () => {
-  const { cleanupTrash, cleanOldTrash: cleanKanbanTrash, companies, permanentlyDeleteCompany, updateCompany } = useKanbanStore();
+  const { cleanupTrash, cleanOldTrash: cleanKanbanTrash, companies, permanentlyDeleteCompany, updateCompany, fetchKanbanData } = useKanbanStore();
   const { uiZoom, isDark } = useUserPrefsStore();
   const { documents, validateDocumentStatuses, cleanOldTrash: cleanDocsTrash } = useDocumentStore();
   const { cleanOldTrash: cleanAccountingTrash } = useAccountingStore();
@@ -69,7 +69,10 @@ const AppContent = () => {
     cleanAccountingTrash();
     cleanEssentialDocsTrash();
     cleanCertificateTrash();
-  }, [cleanupTrash, cleanKanbanTrash, cleanDocsTrash, cleanAccountingTrash, cleanEssentialDocsTrash, cleanCertificateTrash]);
+
+    // Fetch initial DB state for Kanban
+    fetchKanbanData();
+  }, [cleanupTrash, cleanKanbanTrash, cleanDocsTrash, cleanAccountingTrash, cleanEssentialDocsTrash, cleanCertificateTrash, fetchKanbanData]);
 
   // Background CNPJ Monitor
   useEffect(() => {
