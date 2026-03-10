@@ -158,3 +158,112 @@ model Milestone {
   dueDate   DateTime?
   completed Boolean  @default(false)
 }
+
+// ==========================================
+// BUDGETS & COMPANIES MODELS
+// ==========================================
+
+model MainCompanyProfile {
+  id               String   @id @default(uuid())
+  isDefault        Boolean  @default(false)
+  razaoSocial      String
+  nomeFantasia     String
+  cnpj             String
+  state            String
+  porte            String
+  lastSynced       DateTime?
+  dataSource       String?
+  naturezaJuridica String
+  cep              String
+  logradouro       String
+  numero           String
+  complemento      String
+  bairro           String
+  municipio        String
+  telefone         String
+  email            String
+  cnaes            Json?
+  taxRegime        String
+  simplesAnnexes   Json?
+  pis              Float
+  cofins           Float
+  csll             Float
+  irpj             Float
+  cpp              Float
+  iss              Float
+  icms             Float
+  ipi              Float
+  annexRates       Json?
+}
+
+model Company {
+  id                           String   @id @default(uuid())
+  type                         String
+  cnpj                         String
+  razao_social                 String
+  nome_fantasia                String
+  descricao_situacao_cadastral String
+  cnae_fiscal_descricao        String
+  cep                          String
+  uf                           String
+  municipio                    String
+  bairro                       String
+  logradouro                   String
+  numero                       String
+  complemento                  String
+  ddd_telefone_1               String?
+  ddd_telefone_2               String?
+  email                        String?
+  contacts                     Json?
+  comments                     String?  @db.Text
+  amostra                      Boolean?
+  frete                        String?
+  mantemOferta                 String?
+  areasAtuacao                 Json?
+  lastCnpjCheck                DateTime?
+  seguroCarga                  Boolean?
+  customLink                   String?
+  rating                       Float?
+  isFavorite                   Boolean  @default(false)
+  trashed                      Boolean  @default(false)
+  trashedAt                    DateTime?
+  createdAt                    DateTime @default(now())
+}
+
+model Route {
+  id             String   @id @default(uuid())
+  name           String
+  origin         String
+  destination    String
+  transporterIds Json
+  isFavorite     Boolean  @default(false)
+  trashed        Boolean  @default(false)
+  trashedAt      DateTime?
+  createdAt      DateTime @default(now())
+}
+
+model Budget {
+  id         String   @id @default(uuid())
+  title      String
+  type       String
+  userId     String?
+  status     String
+  cardId     String?
+  items      Json
+  totalValue Float
+  trashed    Boolean  @default(false)
+  trashedAt  DateTime?
+  archived   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  title     String
+  message   String   @db.Text
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  link      String?
+  type      String   @default("info")
+  userId    String?
+}

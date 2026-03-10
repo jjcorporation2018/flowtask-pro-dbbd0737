@@ -153,14 +153,22 @@ export const useKanbanStore = create<KanbanState>()(
             mainCompanies: [...s.mainCompanies, { ...data, id: newId, isDefault: isFirst }]
           };
         });
+        const isFirst = get().mainCompanies.length === 1;
+        api.post('/kanban/main-companies', { ...data, id: newId, isDefault: isFirst }).catch(console.error);
         return newId;
       },
-      updateMainCompany: (id, data) => set(s => ({
-        mainCompanies: s.mainCompanies.map(c => c.id === id ? { ...c, ...data } : c)
-      })),
-      deleteMainCompany: (id) => set(s => ({
-        mainCompanies: s.mainCompanies.filter(c => c.id !== id)
-      })),
+      updateMainCompany: (id, data) => {
+        set(s => ({
+          mainCompanies: s.mainCompanies.map(c => c.id === id ? { ...c, ...data } : c)
+        }));
+        api.put(`/kanban/main-companies/${id}`, data).catch(console.error);
+      },
+      deleteMainCompany: (id) => {
+        set(s => ({
+          mainCompanies: s.mainCompanies.filter(c => c.id !== id)
+        }));
+        api.delete(`/kanban/main-companies/${id}`).catch(console.error);
+      },
       setDefaultMainCompany: (id) => set(s => ({
         mainCompanies: s.mainCompanies.map(c => ({
           ...c,
@@ -191,151 +199,206 @@ export const useKanbanStore = create<KanbanState>()(
       })),
 
       // Companies
-      addCompany: (companyData) => set(s => {
-        const currentUser = useAuthStore.getState().currentUser;
-        if (currentUser) {
-          useAuditStore.getState().addLog({
-            userId: currentUser.id,
-            userName: currentUser.name,
-            action: 'CRIAR',
-            entity: 'EMPRESA',
-            details: `Cadastrou o contato comercial "${companyData.nome_fantasia || companyData.razao_social}"`
-          });
-        }
-        return {
-          companies: [{ ...companyData, id: uid(), createdAt: new Date().toISOString() }, ...s.companies]
-        };
-      }),
-      removeCompany: (id) => set(s => ({
-        companies: s.companies.filter(c => c.id !== id)
-      })),
-      updateCompany: (id, data) => set(s => {
-        const currentUser = useAuthStore.getState().currentUser;
-        const target = s.companies.find(c => c.id === id);
-        if (currentUser && target) {
-          useAuditStore.getState().addLog({
-            userId: currentUser.id,
-            userName: currentUser.name,
-            action: 'EDITAR',
-            entity: 'EMPRESA',
-            details: `Atualizou os dados de negócio de "${target.nome_fantasia || target.razao_social}"`
-          });
-        }
-        return {
-          companies: s.companies.map(c => {
-            if (c.id === id) {
-              const isTrashing = data.trashed === true && !c.trashed;
-              return {
-                ...c,
-                ...data,
-                trashedAt: isTrashing ? new Date().toISOString() : (data.trashed === false ? undefined : c.trashedAt)
-              };
-            }
-            return c;
-          })
-        };
-      }),
-      deleteCompany: (id) => set(s => ({
-        companies: s.companies.map(c => c.id === id ? { ...c, trashed: true, trashedAt: new Date().toISOString() } : c)
-      })),
-      restoreCompany: (id) => set(s => ({
-        companies: s.companies.map(c => c.id === id ? { ...c, trashed: false, trashedAt: undefined } : c)
-      })),
-      permanentlyDeleteCompany: (id) => set(s => ({
-        companies: s.companies.filter(c => c.id !== id)
-      })),
+      addCompany: (companyData) => {
+        const id = uid();
+        const createdAt = new Date().toISOString();
+        set(s => {
+          const currentUser = useAuthStore.getState().currentUser;
+          if (currentUser) {
+            useAuditStore.getState().addLog({
+              userId: currentUser.id,
+              userName: currentUser.name,
+              action: 'CRIAR',
+              entity: 'EMPRESA',
+              details: `Cadastrou o contato comercial "${companyData.nome_fantasia || companyData.razao_social}"`
+            });
+          }
+          return {
+            companies: [{ ...companyData, id, createdAt }, ...s.companies]
+          };
+        });
+        api.post('/kanban/companies', { ...companyData, id, createdAt }).catch(console.error);
+      },
+      removeCompany: (id) => {
+        set(s => ({
+          companies: s.companies.filter(c => c.id !== id)
+        }));
+        api.delete(`/kanban/companies/${id}`).catch(console.error);
+      },
+      updateCompany: (id, data) => {
+        set(s => {
+          const currentUser = useAuthStore.getState().currentUser;
+          const target = s.companies.find(c => c.id === id);
+          if (currentUser && target) {
+            useAuditStore.getState().addLog({
+              userId: currentUser.id,
+              userName: currentUser.name,
+              action: 'EDITAR',
+              entity: 'EMPRESA',
+              details: `Atualizou os dados de negócio de "${target.nome_fantasia || target.razao_social}"`
+            });
+          }
+          return {
+            companies: s.companies.map(c => {
+              if (c.id === id) {
+                const isTrashing = data.trashed === true && !c.trashed;
+                return {
+                  ...c,
+                  ...data,
+                  trashedAt: isTrashing ? new Date().toISOString() : (data.trashed === false ? undefined : c.trashedAt)
+                };
+              }
+              return c;
+            })
+          };
+        });
+        api.put(`/kanban/companies/${id}`, data).catch(console.error);
+      },
+      deleteCompany: (id) => {
+        set(s => ({
+          companies: s.companies.map(c => c.id === id ? { ...c, trashed: true, trashedAt: new Date().toISOString() } : c)
+        }));
+        api.put(`/kanban/companies/${id}`, { trashed: true, trashedAt: new Date().toISOString() }).catch(console.error);
+      },
+      restoreCompany: (id) => {
+        set(s => ({
+          companies: s.companies.map(c => c.id === id ? { ...c, trashed: false, trashedAt: undefined } : c)
+        }));
+        api.put(`/kanban/companies/${id}`, { trashed: false, trashedAt: null }).catch(console.error);
+      },
+      permanentlyDeleteCompany: (id) => {
+        set(s => ({
+          companies: s.companies.filter(c => c.id !== id)
+        }));
+        api.delete(`/kanban/companies/${id}`).catch(console.error);
+      },
 
       // Routes
-      addRoute: (routeData) => set(s => ({
-        routes: [...s.routes, { ...routeData, id: uid(), createdAt: new Date().toISOString() }]
-      })),
-      updateRoute: (id, data) => set(s => ({
-        routes: s.routes.map(r => {
-          if (r.id === id) {
-            const isTrashing = data.trashed === true && !r.trashed;
-            return {
-              ...r,
-              ...data,
-              trashedAt: isTrashing ? new Date().toISOString() : (data.trashed === false ? undefined : r.trashedAt)
-            };
-          }
-          return r;
-        })
-      })),
-      deleteRoute: (id) => set(s => ({
-        routes: s.routes.map(r => r.id === id ? { ...r, trashed: true, trashedAt: new Date().toISOString() } : r)
-      })),
-      restoreRoute: (id) => set(s => ({
-        routes: s.routes.map(r => r.id === id ? { ...r, trashed: false } : r)
-      })),
-      permanentlyDeleteRoute: (id) => set(s => ({
-        routes: s.routes.filter(r => r.id !== id)
-      })),
+      addRoute: (routeData) => {
+        const id = uid();
+        const createdAt = new Date().toISOString();
+        set(s => ({
+          routes: [...s.routes, { ...routeData, id, createdAt }]
+        }));
+        api.post('/kanban/routes', { ...routeData, id, createdAt }).catch(console.error);
+      },
+      updateRoute: (id, data) => {
+        set(s => ({
+          routes: s.routes.map(r => {
+            if (r.id === id) {
+              const isTrashing = data.trashed === true && !r.trashed;
+              return {
+                ...r,
+                ...data,
+                trashedAt: isTrashing ? new Date().toISOString() : (data.trashed === false ? undefined : r.trashedAt)
+              };
+            }
+            return r;
+          })
+        }));
+        api.put(`/kanban/routes/${id}`, data).catch(console.error);
+      },
+      deleteRoute: (id) => {
+        set(s => ({
+          routes: s.routes.map(r => r.id === id ? { ...r, trashed: true, trashedAt: new Date().toISOString() } : r)
+        }));
+        api.put(`/kanban/routes/${id}`, { trashed: true, trashedAt: new Date().toISOString() }).catch(console.error);
+      },
+      restoreRoute: (id) => {
+        set(s => ({
+          routes: s.routes.map(r => r.id === id ? { ...r, trashed: false } : r)
+        }));
+        api.put(`/kanban/routes/${id}`, { trashed: false }).catch(console.error);
+      },
+      permanentlyDeleteRoute: (id) => {
+        set(s => ({
+          routes: s.routes.filter(r => r.id !== id)
+        }));
+        api.delete(`/kanban/routes/${id}`).catch(console.error);
+      },
 
       // Budgets
-      addBudget: (budgetData) => set(s => {
+      addBudget: (budgetData) => {
+        const id = uid();
+        const createdAt = new Date().toISOString();
         const currentUser = useAuthStore.getState().currentUser;
-        if (currentUser) {
-          useAuditStore.getState().addLog({
-            userId: currentUser.id,
-            userName: currentUser.name,
-            action: 'CRIAR',
-            entity: 'ORÇAMENTO',
-            details: `Criou o orçamento "${budgetData.title}"`
-          });
-        }
-        return {
-          budgets: [{ ...budgetData, userId: currentUser?.id, id: uid(), createdAt: new Date().toISOString() }, ...s.budgets]
-        };
-      }),
-      updateBudget: (id, data) => set(s => {
-        const currentUser = useAuthStore.getState().currentUser;
-        const target = s.budgets.find(b => b.id === id);
 
-        if (currentUser && target) {
-          let logMsg = `Editou o orçamento "${target.title}"`;
-          let logAction: 'EDITAR' | 'STATUS' = 'EDITAR';
-
-          if (data.status && data.status !== target.status) {
-            logMsg = `Marcou o orçamento "${target.title}" como ${data.status.toUpperCase()}`;
-            logAction = 'STATUS';
+        set(s => {
+          if (currentUser) {
+            useAuditStore.getState().addLog({
+              userId: currentUser.id,
+              userName: currentUser.name,
+              action: 'CRIAR',
+              entity: 'ORÇAMENTO',
+              details: `Criou o orçamento "${budgetData.title}"`
+            });
           }
+          return {
+            budgets: [{ ...budgetData, userId: currentUser?.id, id, createdAt }, ...s.budgets]
+          };
+        });
 
-          useAuditStore.getState().addLog({
-            userId: currentUser.id,
-            userName: currentUser.name,
-            action: logAction,
-            entity: 'ORÇAMENTO',
-            details: logMsg
-          });
-        }
+        api.post('/kanban/budgets', { ...budgetData, userId: currentUser?.id, id, createdAt }).catch(console.error);
+      },
+      updateBudget: (id, data) => {
+        set(s => {
+          const currentUser = useAuthStore.getState().currentUser;
+          const target = s.budgets.find(b => b.id === id);
 
-        return {
-          budgets: s.budgets.map(b => b.id === id ? { ...b, ...data } : b)
-        };
-      }),
-      deleteBudget: (id) => set(s => ({
-        budgets: s.budgets.map(b => b.id === id ? { ...b, trashed: true, trashedAt: new Date().toISOString() } : b)
-      })),
-      restoreBudget: (id) => set(s => ({
-        budgets: s.budgets.map(b => b.id === id ? { ...b, trashed: false, trashedAt: undefined } : b)
-      })),
-      permanentlyDeleteBudget: (id) => set(s => {
-        const currentUser = useAuthStore.getState().currentUser;
-        const target = s.budgets.find(b => b.id === id);
-        if (currentUser && target) {
-          useAuditStore.getState().addLog({
-            userId: currentUser.id,
-            userName: currentUser.name,
-            action: 'EXCLUIR',
-            entity: 'ORÇAMENTO',
-            details: `Excluiu permanentemente o orçamento "${target.title}"`
-          });
-        }
-        return {
-          budgets: s.budgets.filter(b => b.id !== id)
-        };
-      }),
+          if (currentUser && target) {
+            let logMsg = `Editou o orçamento "${target.title}"`;
+            let logAction: 'EDITAR' | 'STATUS' = 'EDITAR';
+
+            if (data.status && data.status !== target.status) {
+              logMsg = `Marcou o orçamento "${target.title}" como ${data.status.toUpperCase()}`;
+              logAction = 'STATUS';
+            }
+
+            useAuditStore.getState().addLog({
+              userId: currentUser.id,
+              userName: currentUser.name,
+              action: logAction,
+              entity: 'ORÇAMENTO',
+              details: logMsg
+            });
+          }
+          return {
+            budgets: s.budgets.map(b => b.id === id ? { ...b, ...data } : b)
+          };
+        });
+        api.put(`/kanban/budgets/${id}`, data).catch(console.error);
+      },
+      deleteBudget: (id) => {
+        set(s => ({
+          budgets: s.budgets.map(b => b.id === id ? { ...b, trashed: true, trashedAt: new Date().toISOString() } : b)
+        }));
+        api.put(`/kanban/budgets/${id}`, { trashed: true, trashedAt: new Date().toISOString() }).catch(console.error);
+      },
+      restoreBudget: (id) => {
+        set(s => ({
+          budgets: s.budgets.map(b => b.id === id ? { ...b, trashed: false } : b)
+        }));
+        api.put(`/kanban/budgets/${id}`, { trashed: false, trashedAt: null }).catch(console.error);
+      },
+      permanentlyDeleteBudget: (id) => {
+        set(s => {
+          const currentUser = useAuthStore.getState().currentUser;
+          const target = s.budgets.find(b => b.id === id);
+          if (currentUser && target) {
+            useAuditStore.getState().addLog({
+              userId: currentUser.id,
+              userName: currentUser.name,
+              action: 'EXCLUIR',
+              entity: 'ORÇAMENTO',
+              details: `Excluiu permanentemente o orçamento "${target.title}"`
+            });
+          }
+          return {
+            budgets: s.budgets.filter(b => b.id !== id)
+          };
+        });
+        api.delete(`/kanban/budgets/${id}`).catch(console.error);
+      },
 
       // Folders
       addFolder: (name, color = '#026AA7', sideImage) => {
