@@ -229,25 +229,72 @@ export default function CompanyProfilePage() {
                     else porte = 'Médio';
                 }
 
-                setFormData(prev => ({
-                    ...prev,
-                    razaoSocial: fbData.razao_social || prev.razaoSocial,
-                    nomeFantasia: fbData.estabelecimento?.nome_fantasia || prev.nomeFantasia,
-                    state: fbData.estabelecimento?.estado?.sigla || prev.state,
-                    naturezaJuridica: fbData.natureza_juridica?.descricao || prev.naturezaJuridica,
-                    cep: fbData.estabelecimento?.cep ? fbData.estabelecimento.cep.replace(/([\d]{5})([\d]{3})/, '$1-$2') : prev.cep,
-                    logradouro: fbData.estabelecimento?.logradouro || prev.logradouro,
-                    numero: fbData.estabelecimento?.numero || prev.numero,
-                    complemento: fbData.estabelecimento?.complemento || prev.complemento,
-                    bairro: fbData.estabelecimento?.bairro || prev.bairro,
-                    municipio: fbData.estabelecimento?.cidade?.nome || prev.municipio,
-                    telefone: fbData.estabelecimento?.telefone1 || prev.telefone,
-                    email: fbData.estabelecimento?.email || prev.email,
-                    cnaes: fbData.estabelecimento?.atividade_principal ? [{ code: fbData.estabelecimento.atividade_principal.id, description: fbData.estabelecimento.atividade_principal.descricao }] : prev.cnaes,
-                    porte: porte,
-                    lastSynced: new Date().toISOString(),
-                    dataSource: 'CNPJ.ws (Fallback)',
-                }));
+                let newRegime = formData.taxRegime;
+                if (fbData.simples?.mei === 'Sim') {
+                    porte = 'MEI';
+                    newRegime = 'Simples Nacional';
+                } else if (fbData.simples?.simples === 'Sim') {
+                    newRegime = 'Simples Nacional';
+                } else {
+                    newRegime = 'Lucro Presumido';
+                }
+
+                const fbCnaes: any[] = [];
+                if (fbData.estabelecimento?.atividade_principal) {
+                    fbCnaes.push({ code: fbData.estabelecimento.atividade_principal.id, description: fbData.estabelecimento.atividade_principal.descricao });
+                }
+                if (fbData.estabelecimento?.atividades_secundarias) {
+                    fbData.estabelecimento.atividades_secundarias.forEach((cnae: any) => {
+                        fbCnaes.push({ code: cnae.id, description: cnae.descricao });
+                    });
+                }
+
+                let newAnnexes: string[] = [];
+                if (fbCnaes.length > 0 && newRegime === 'Simples Nacional') {
+                    const inferredAnnex = inferAnnexFromCnae(fbCnaes[0].code);
+                    if (inferredAnnex) {
+                        newAnnexes.push(inferredAnnex);
+                        toast.success(`Regime e Anexo (${inferredAnnex}) configurados automaticamente via Receita Federal (CNPJ.ws).`);
+                    }
+                }
+
+                setFormData(prev => {
+                    let newData = {
+                        ...prev,
+                        razaoSocial: fbData.razao_social || prev.razaoSocial,
+                        nomeFantasia: fbData.estabelecimento?.nome_fantasia || prev.nomeFantasia,
+                        state: fbData.estabelecimento?.estado?.sigla || prev.state,
+                        naturezaJuridica: fbData.natureza_juridica?.descricao || prev.naturezaJuridica,
+                        cep: fbData.estabelecimento?.cep ? fbData.estabelecimento.cep.replace(/([\d]{5})([\d]{3})/, '$1-$2') : prev.cep,
+                        logradouro: fbData.estabelecimento?.logradouro || prev.logradouro,
+                        numero: fbData.estabelecimento?.numero || prev.numero,
+                        complemento: fbData.estabelecimento?.complemento || prev.complemento,
+                        bairro: fbData.estabelecimento?.bairro || prev.bairro,
+                        municipio: fbData.estabelecimento?.cidade?.nome || prev.municipio,
+                        telefone: fbData.estabelecimento?.telefone1 || prev.telefone,
+                        email: fbData.estabelecimento?.email || prev.email,
+                        cnaes: fbCnaes.length > 0 ? fbCnaes : prev.cnaes,
+                        porte,
+                        taxRegime: newRegime,
+                        simplesAnnexes: newAnnexes,
+                        lastSynced: new Date().toISOString(),
+                        dataSource: 'CNPJ.ws (Fallback)',
+                    };
+
+                    if (newRegime === 'Simples Nacional' && newAnnexes.length > 0) {
+                        const primaryAnnex = newAnnexes[0] as keyof typeof SIMPLES_NACIONAL_RATES;
+                        newData = { ...newData, ...SIMPLES_NACIONAL_RATES[primaryAnnex] } as any;
+                        newData.annexRates = {
+                            [primaryAnnex]: { ...SIMPLES_NACIONAL_RATES[primaryAnnex] }
+                        };
+                    } else if (newRegime === 'Lucro Presumido') {
+                        newData = { ...newData, ...PRESUMIDO_RATES, simplesAnnexes: [], annexRates: {} } as any;
+                    } else if (newRegime === 'Lucro Real') {
+                        newData = { ...newData, ...REAL_RATES, simplesAnnexes: [], annexRates: {} } as any;
+                    }
+
+                    return newData;
+                });
                 toast.success('Dados preenchidos via API Secundária (CNPJ.ws)!');
             } catch (fbErr) {
                 console.error("Ambas as APIs falharam", fbErr);
