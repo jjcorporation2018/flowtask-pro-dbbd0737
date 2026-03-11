@@ -68,10 +68,11 @@ const AccountingDashboard = () => {
         return true;
     };
 
-    // Filtrar pela empresa ativa e pelo período selecionado
+    // Filtrar pela empresa ativa e pelo período selecionado e que não estejam na lixeira
     const companyEntries = useMemo(() => {
         return entries.filter(e => {
             if (e.companyId !== activeCompany?.id) return false;
+            if (e.trashedAt) return false;
             return isDateInFilter(e.date);
         });
     }, [entries, activeCompany?.id, filterMode, selectedMonth, selectedYear]);
@@ -79,6 +80,7 @@ const AccountingDashboard = () => {
     const companyInvoices = useMemo(() => {
         return invoices.filter(i => {
             if (i.companyId !== activeCompany?.id) return false;
+            if (i.trashedAt) return false;
             return isDateInFilter(i.issueDate);
         });
     }, [invoices, activeCompany?.id, filterMode, selectedMonth, selectedYear]);
@@ -487,7 +489,7 @@ const AccountingDashboard = () => {
                             <TabsTrigger value="notas" className="data-[state=active]:bg-background">Logística NF (XML)</TabsTrigger>
                             <TabsTrigger value="banco" className="data-[state=active]:bg-background">Conciliação Bancária</TabsTrigger>
                             <TabsTrigger value="cobrancas" className="data-[state=active]:bg-background">Automações & Cobranças</TabsTrigger>
-                            <TabsTrigger value="impostos" className="data-[state=active]:bg-background">Tributos & Saúde</TabsTrigger>
+                            <TabsTrigger value="impostos" className="data-[state=active]:bg-background">Inteligência Tributária</TabsTrigger>
                             <TabsTrigger value="prolabore" className="data-[state=active]:bg-background text-emerald-500 font-bold flex items-center gap-1 shrink-0">
                                 <DollarSign className="h-3 w-3" />
                                 Pró-Labore (Simulador)
