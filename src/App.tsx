@@ -145,6 +145,18 @@ const AppContent = () => {
     return () => clearInterval(interval);
   }, []); // Run only once
 
+  // Background Notification Monitor for Instant Bell Updates
+  useEffect(() => {
+    const NOTIF_INTERVAL = 10000; // Check every 10 seconds
+    const interval = setInterval(() => {
+      // Only fetch if logged in
+      if (useKanbanStore.getState().members.length > 0) {
+        useKanbanStore.getState().fetchNotifications();
+      }
+    }, NOTIF_INTERVAL);
+    return () => clearInterval(interval);
+  }, []);
+
   useEffect(() => {
     // Check for expiring documents and notify
     const CHECK_INTERVAL = 60 * 60 * 1000; // Check every hour

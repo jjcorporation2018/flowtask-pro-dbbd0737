@@ -55,6 +55,7 @@ export interface AccountingState {
     updateTaxObligation: (id: string, tax: Partial<TaxObligation>) => void;
     deleteTaxObligation: (id: string) => void;
     restoreTaxObligation: (id: string) => void;
+    addTaxObligation: (tax: TaxObligation) => void;
 
     // Exports
     exports: AccountantExport[];
@@ -413,6 +414,11 @@ export const useAccountingStore = create<AccountingState>()(
             restoreTaxObligation: (id) =>
                 set((state) => ({
                     taxObligations: state.taxObligations.map(t => t.id === id ? { ...t, trashedAt: undefined } : t),
+                })),
+
+            addTaxObligation: (tax) =>
+                set((state) => ({
+                    taxObligations: [tax, ...state.taxObligations]
                 })),
 
             payTax: (id) =>

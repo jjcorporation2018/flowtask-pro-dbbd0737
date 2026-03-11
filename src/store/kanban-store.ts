@@ -91,6 +91,7 @@ interface KanbanState {
   stopTimer: (cardId: string) => void;
   resetTimer: (cardId: string) => void;
   fetchKanbanData: () => Promise<void>;
+  fetchNotifications: () => Promise<void>;
 
   // Members Sync
   setMembers: (members: WorkspaceMember[]) => void;
@@ -130,6 +131,21 @@ export const useKanbanStore = create<KanbanState>()(
           }
         } catch (error) {
           console.error("Failed to load Kanban data from DB:", error);
+        }
+      },
+
+      fetchNotifications: async () => {
+        try {
+          const res = await api.get('/kanban/notifications');
+          if (res.data) {
+            set(s => {
+              // Only override notifications, keeping other state intact.
+              // Merge to prevent UI flicker
+              return { notifications: res.data };
+            });
+          }
+        } catch (error) {
+          console.error("Failed to fetch notifications:", error);
         }
       },
 
@@ -691,17 +707,6 @@ export const useKanbanStore = create<KanbanState>()(
                 entity: 'CARTÃO',
                 details: `Moveu "${targetCard.title}" para a fase/lista "${targetList.title}"`
               });
-
-              // Adicionar Notificação
-              if (targetCard.assignee && targetCard.assignee !== currentUser.id) {
-                get().addNotification(
-                  'Cartão Movido',
-                  `"${targetCard.title}" avançou para ${targetList.title}`,
-                  `/board/${targetList.boardId}`,
-                  'info',
-                  targetCard.assignee
-                );
-              }
             }
           }
 

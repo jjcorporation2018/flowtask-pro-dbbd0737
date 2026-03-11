@@ -124,6 +124,24 @@ export const TaxDash = () => {
                     <Calculator className="h-4 w-4 text-primary" />
                     Inteligência Tributária
                 </h3>
+                <button
+                    onClick={() => {
+                        const newId = crypto.randomUUID();
+                        useAccountingStore.getState().addTaxObligation({
+                            id: newId,
+                            companyId: activeCompany?.id || '',
+                            month: currentMonth,
+                            name: 'Nova Guia Manual',
+                            amount: 0,
+                            dueDate: `${currentYear}-${String(now.getMonth() + 2).padStart(2, '0')}-20`, // roughly next month 20th
+                            status: 'pending'
+                        });
+                        toast.success("Guia avulsa gerada com sucesso!");
+                    }}
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground px-3 py-1.5 rounded-md text-xs font-bold transition-colors"
+                >
+                    + Nova Guia
+                </button>
             </div>
 
             <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 overflow-y-auto custom-scrollbar">

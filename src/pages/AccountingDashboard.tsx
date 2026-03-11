@@ -49,17 +49,21 @@ const AccountingDashboard = () => {
     const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
 
     const isDateInFilter = (dateStr: string) => {
-        const d = new Date(dateStr);
+        if (!dateStr) return false;
+        const [yearStr, monthStr] = dateStr.split('T')[0].split('-');
+        const dYear = parseInt(yearStr, 10);
+        const dMonth = parseInt(monthStr, 10) - 1;
+
         const now = new Date();
         if (filterMode === 'current_month') {
-            return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+            return dMonth === now.getMonth() && dYear === now.getFullYear();
         }
         if (filterMode === 'specific_month') {
             const [year, month] = selectedMonth.split('-');
-            return d.getFullYear() === parseInt(year) && d.getMonth() === parseInt(month) - 1;
+            return dYear === parseInt(year) && dMonth === parseInt(month) - 1;
         }
         if (filterMode === 'specific_year') {
-            return d.getFullYear() === selectedYear;
+            return dYear === selectedYear;
         }
         return true;
     };
