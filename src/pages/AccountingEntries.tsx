@@ -6,6 +6,7 @@ import EntryFormModal from '@/components/accounting/EntryFormModal';
 import RecurringExpensesModal from '@/components/accounting/RecurringExpensesModal';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '@/store/auth-store';
+import { AccountingTrashViewer } from '@/components/accounting/AccountingTrashViewer';
 
 const AccountingEntries = () => {
     const entries = useAccountingStore(state => state.entries);
@@ -19,6 +20,7 @@ const AccountingEntries = () => {
 
     const [modalOpen, setModalOpen] = useState(false);
     const [recurringModalOpen, setRecurringModalOpen] = useState(false);
+    const [trashViewerOpen, setTrashViewerOpen] = useState(false);
     const [modalType, setModalType] = useState<'revenue' | 'expense'>('revenue');
     const [entryToEdit, setEntryToEdit] = useState<string | undefined>(undefined);
     const [searchQuery, setSearchQuery] = useState('');
@@ -74,6 +76,14 @@ const AccountingEntries = () => {
                         {activeCompany.nomeFantasia || activeCompany.razaoSocial}
                     </span>
                 )}
+                <div className="ml-auto">
+                    <button
+                        onClick={() => setTrashViewerOpen(true)}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-background/20 hover:bg-rose-500/20 text-white hover:text-rose-400 rounded-md transition-colors text-sm font-medium border border-transparent hover:border-rose-500/30"
+                    >
+                        <Trash2 className="h-4 w-4" /> <span className="hidden sm:inline">Lixeira</span>
+                    </button>
+                </div>
             </div>
 
             <div className="flex-1 overflow-auto p-4 sm:p-6 custom-scrollbar flex flex-col">
@@ -325,6 +335,8 @@ const AccountingEntries = () => {
                 open={recurringModalOpen}
                 onOpenChange={setRecurringModalOpen}
             />
+
+            <AccountingTrashViewer open={trashViewerOpen} onOpenChange={setTrashViewerOpen} />
         </div>
     );
 };
