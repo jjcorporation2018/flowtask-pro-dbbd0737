@@ -32,21 +32,24 @@ router.post('/google', async (req: Request, res: Response) => {
 
         const { email, name, picture, sub: googleId } = payload;
 
-        // 2. Find or Create the User in our Database (Polaryon DB -> Hetzner)
+        // 2. Find or Create the User in our Database
         let user = await prisma.user.findUnique({ where: { email } });
 
         if (!user) {
             const isAdmin = ['jjcorporation2018@gmail.com', 'jefersonvilela72@gmail.com'].includes(email.toLowerCase());
-            // Auto-register first-time users as 'pending' unless they are admins
-            user = await prisma.user.create({
-                data: {
-                    email,
-                    name: name || 'Usuário',
-                    picture: picture || '',
-                    googleId,
-                    role: isAdmin ? 'admin' : 'pending'
-                }
-            });
+            if (isAdmin) {
+                user = await prisma.user.create({
+                    data: {
+                        email,
+                        name: name || 'Usuário',
+                        picture: picture || '',
+                        googleId,
+                        role: 'admin'
+                    }
+                });
+            } else {
+                 return res.status(403).json({ error: 'Você não possui cadastro e permissão para acessar o sistema. Solicite acesso ao administrador.' });
+            }
         }
 
         // Checking if user was banned/disabled or is pending
@@ -54,7 +57,7 @@ router.post('/google', async (req: Request, res: Response) => {
             return res.status(403).json({ error: 'Sua conta foi desativada pelo administrador.' });
         }
         if (user.role === 'pending' || user.role === 'invited') {
-            // Auto-activate pending user upon first Google login
+            // Auto-activate pending user upon first Google login (only if they were registered by admin)
             user = await prisma.user.update({
                 where: { email },
                 data: { role: 'default', name: name || user.name, picture: picture || user.picture, googleId }

@@ -133,21 +133,41 @@ export const useKanbanStore = create<KanbanState>()(
         }
       },
 
-      addNotification: (title, message, link, type = 'info', targetUserId) => set(s => ({
-        notifications: [{ id: uid(), title, message, link, read: false, createdAt: new Date().toISOString(), type, userId: targetUserId }, ...s.notifications]
-      })),
-      markNotificationRead: (id) => set(s => ({
-        notifications: s.notifications.map(n => n.id === id ? { ...n, read: true } : n)
-      })),
-      markAllNotificationsRead: (userId) => set(s => ({
-        notifications: s.notifications.map(n => {
-          if (!userId || n.userId === userId || !n.userId) return { ...n, read: true };
-          return n;
-        })
-      })),
-      clearNotifications: (userId) => set(s => ({
-        notifications: userId ? s.notifications.filter(n => n.userId !== userId && n.userId !== undefined) : []
-      })),
+      addNotification: (title, message, link, type = 'info', targetUserId) => {
+        const newNotif = { id: uid(), title, message, link, read: false, createdAt: new Date().toISOString(), type, userId: targetUserId };
+        set(s => ({ notifications: [newNotif, ...s.notifications] }));
+        api.post('/kanban/notifications', newNotif).catch(console.error);
+      },
+      markNotificationRead: (id) => {
+        set(s => ({ notifications: s.notifications.map(n => n.id === id ? { ...n, read: true } : n) }));
+        api.put(`/kanban/notifications/${id}`, { read: true }).catch(console.error);
+      },
+      markAllNotificationsRead: (userId) => {
+        set(s => {
+          const toMark = s.notifications.filter(n => !n.read && (!userId || n.userId === userId || !n.userId));
+          toMark.forEach(n => {
+            api.put(`/kanban/notifications/${n.id}`, { read: true }).catch(() => {});
+          });
+          return {
+            notifications: s.notifications.map(n => {
+              if (!userId || n.userId === userId || !n.userId) return { ...n, read: true };
+              return n;
+            })
+          };
+        });
+      },
+      clearNotifications: (userId) => {
+        set(s => {
+          const toDelete = s.notifications.filter(n => userId ? (n.userId === userId || !n.userId) : true);
+          // Fire deletes
+          toDelete.forEach(n => {
+             api.delete(`/kanban/notifications/${n.id}`).catch(() => {});
+          });
+          return {
+            notifications: userId ? s.notifications.filter(n => n.userId !== userId && n.userId !== undefined) : []
+          };
+        });
+      },
 
       setUndoAction: (action) => set({ undoAction: action }),
       clearUndoAction: () => set({ undoAction: null }),

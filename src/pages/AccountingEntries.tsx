@@ -31,7 +31,7 @@ const AccountingEntries = () => {
     const [showMobileActions, setShowMobileActions] = useState(false);
 
     const filteredEntries = useMemo(() => {
-        const companyEntries = entries.filter(e => e.companyId === activeCompany?.id && !e.trashedAt);
+        const companyEntries = entries.filter(e => (!activeCompany || e.companyId === activeCompany.id) && !e.trashedAt);
 
         return companyEntries
             .filter(e => {

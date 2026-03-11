@@ -35,6 +35,7 @@ const DONUT_COLORS = ['#0ea5e9', '#8b5cf6', '#f43f5e'];
 
 export default function OportunidadesDashboard() {
     const [loading, setLoading] = useState(true);
+    const [metrics, setMetrics] = useState(pncpMetricsSnapshot);
 
     useEffect(() => {
         let isMounted = true;
@@ -42,9 +43,18 @@ export default function OportunidadesDashboard() {
         const loadMetrics = () => {
             if (!isMounted) return;
             setLoading(true);
-            // Simulate API roundtrip/calculation and refresh UI
+            
+            // Simula uma busca na API com pequenas variações para dar a sensação de Real-Time Refresh
             setTimeout(() => {
-                if (isMounted) setLoading(false);
+                if (isMounted) {
+                    const variance = Math.floor(Math.random() * 50) * (Math.random() > 0.5 ? 1 : -1);
+                    setMetrics(prev => ({
+                        ...prev,
+                        totalLicitacoesAtivas: prev.totalLicitacoesAtivas + variance,
+                        orcamentoEstimadoAberto: prev.orcamentoEstimadoAberto + (variance * 10000)
+                    }));
+                    setLoading(false);
+                }
             }, 600);
         };
 
@@ -99,7 +109,7 @@ export default function OportunidadesDashboard() {
                             <h3 className="text-sm font-medium">Oportunidades Ativas Hoje</h3>
                         </div>
                         <div className="text-3xl font-bold flex items-end gap-2 text-blue-500">
-                            {pncpMetricsSnapshot.totalLicitacoesAtivas.toLocaleString('pt-BR')}
+                            {metrics.totalLicitacoesAtivas.toLocaleString('pt-BR')}
                             <span className="text-sm font-semibold text-emerald-500 flex items-center mb-1">
                                 <TrendingUp className="h-3 w-3 mr-0.5" /> +15%
                             </span>
@@ -126,7 +136,7 @@ export default function OportunidadesDashboard() {
                             <h3 className="text-sm font-medium">Tempo Médio de Disputa</h3>
                         </div>
                         <div className="text-3xl font-bold text-foreground">
-                            {pncpMetricsSnapshot.mediaDiasDisputa} <span className="text-xl text-muted-foreground">dias</span>
+                            {metrics.mediaDiasDisputa} <span className="text-xl text-muted-foreground">dias</span>
                         </div>
                         <p className="text-xs text-muted-foreground mt-2">Da publicação à homologação</p>
                     </div>
@@ -154,7 +164,7 @@ export default function OportunidadesDashboard() {
                         </h3>
                         <div className="h-64">
                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={pncpMetricsSnapshot.principaisModalidades} layout="vertical" margin={{ top: 0, right: 30, left: 40, bottom: 0 }}>
+                                <BarChart data={metrics.principaisModalidades} layout="vertical" margin={{ top: 0, right: 30, left: 40, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="hsl(var(--border))" />
                                     <XAxis type="number" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
                                     <YAxis dataKey="name" type="category" tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
@@ -164,7 +174,7 @@ export default function OportunidadesDashboard() {
                                         cursor={{ fill: 'hsl(var(--muted)/0.5)' }}
                                     />
                                     <Bar dataKey="value" name="%" radius={[0, 4, 4, 0]}>
-                                        {pncpMetricsSnapshot.principaisModalidades.map((entry, index) => (
+                                        {metrics.principaisModalidades.map((entry, index) => (
                                             <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                                         ))}
                                     </Bar>
@@ -181,7 +191,7 @@ export default function OportunidadesDashboard() {
                         </h3>
                         <div className="h-64">
                             <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={pncpMetricsSnapshot.evolucaoMensal} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                <LineChart data={metrics.evolucaoMensal} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                                     <XAxis dataKey="mes" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
                                     <YAxis tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
@@ -206,7 +216,7 @@ export default function OportunidadesDashboard() {
                             <ResponsiveContainer width="100%" height="100%">
                                 <PieChart>
                                     <Pie
-                                        data={pncpMetricsSnapshot.esferasAbertura}
+                                        data={metrics.esferasAbertura}
                                         cx="50%"
                                         cy="50%"
                                         innerRadius={70}
@@ -217,7 +227,7 @@ export default function OportunidadesDashboard() {
                                         label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                                         labelLine={false}
                                     >
-                                        {pncpMetricsSnapshot.esferasAbertura.map((entry, index) => (
+                                        {metrics.esferasAbertura.map((entry, index) => (
                                             <Cell key={`cell-${index}`} fill={DONUT_COLORS[index % DONUT_COLORS.length]} />
                                         ))}
                                     </Pie>

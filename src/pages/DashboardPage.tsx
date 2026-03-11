@@ -143,7 +143,17 @@ const Dashboard = () => {
       upcomingCards.forEach(c => {
         if (c.dueDate) {
           const list = activeLists.find(l => l.id === c.listId);
-          events.push({ id: c.id, title: `Tarefa: ${c.title}`, date: safeDateObject(c.dueDate), type: 'tarefa', color: 'text-primary', icon: Clock, url: list?.boardId ? `/board/${list.boardId}` : '' });
+          const cDate = safeDateObject(c.dueDate);
+          const isOverdue = cDate < today;
+          events.push({ 
+            id: c.id, 
+            title: isOverdue ? `[ATRASADA] ${c.title}` : `Tarefa: ${c.title}`, 
+            date: cDate, 
+            type: 'tarefa', 
+            color: isOverdue ? 'text-red-500 font-bold bg-red-500/10 px-1 rounded animate-pulse' : 'text-primary', 
+            icon: isOverdue ? AlertCircle : Clock, 
+            url: list?.boardId ? `/board/${list.boardId}` : '' 
+          });
         }
       });
     }
@@ -160,15 +170,35 @@ const Dashboard = () => {
 
     // 3. Documents
     if (canDocs) {
-      documents.filter(d => d.expirationDate && !d.trashed && safeDateObject(d.expirationDate) >= today && safeDateObject(d.expirationDate) <= futureLimit).forEach(d => {
-        events.push({ id: d.id, title: `Doc Expirando: ${d.title}`, date: safeDateObject(d.expirationDate), type: 'documento', color: 'text-yellow-500', icon: FileText, url: '/documentacao' });
+      documents.filter(d => d.expirationDate && !d.trashed && safeDateObject(d.expirationDate) <= futureLimit).forEach(d => {
+        const dDate = safeDateObject(d.expirationDate);
+        const isOverdue = dDate < today;
+        events.push({ 
+          id: d.id, 
+          title: isOverdue ? `[VENCIDO] Doc: ${d.title}` : `Doc Expirando: ${d.title}`, 
+          date: dDate, 
+          type: 'documento', 
+          color: isOverdue ? 'text-red-500 font-bold bg-red-500/10 px-1 rounded animate-pulse' : 'text-yellow-500', 
+          icon: isOverdue ? AlertCircle : FileText, 
+          url: '/documentacao' 
+        });
       });
     }
 
     // 4. Accounting (Tax Obligations)
     if (canAccounting) {
-      taxObligations.filter(t => !t.trashedAt && t.status === 'pending' && safeDateObject(t.dueDate) >= today && safeDateObject(t.dueDate) <= futureLimit).forEach(t => {
-        events.push({ id: t.id, title: `Imposto a Pagar: ${t.name}`, date: safeDateObject(t.dueDate), type: 'contabil', color: 'text-red-500', icon: PiggyBank, url: '/contabil' });
+      taxObligations.filter(t => !t.trashedAt && t.status === 'pending' && safeDateObject(t.dueDate) <= futureLimit).forEach(t => {
+        const tDate = safeDateObject(t.dueDate);
+        const isOverdue = tDate < today;
+        events.push({ 
+          id: t.id, 
+          title: isOverdue ? `[VENCIDA] Guia: ${t.name}` : `Imposto a Pagar: ${t.name}`, 
+          date: tDate, 
+          type: 'contabil', 
+          color: isOverdue ? 'text-red-500 font-bold bg-red-500/10 px-1 rounded animate-pulse' : 'text-red-500', 
+          icon: isOverdue ? AlertCircle : PiggyBank, 
+          url: '/contabil' 
+        });
       });
     }
 
