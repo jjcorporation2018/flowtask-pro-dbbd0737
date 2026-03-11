@@ -5,8 +5,6 @@ import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import rateLimit from 'express-rate-limit';
 import hpp from 'hpp';
-// @ts-ignore
-import xss from 'xss-clean';
 
 dotenv.config();
 
@@ -45,9 +43,6 @@ app.use(cors({
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
-
-// Data sanitization against XSS (Cross Site Scripting)
-app.use(xss());
 
 // Prevent HTTP Parameter Pollution
 app.use(hpp());
