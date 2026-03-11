@@ -106,6 +106,8 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
   const [showChat, setShowChat] = useState((card?.comments.length || 0) > 0);
   const [newMilestoneTitle, setNewMilestoneTitle] = useState('');
   const [isDescExpanded, setIsDescExpanded] = useState(false);
+  const [showMentionSuggestions, setShowMentionSuggestions] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
 
   // Constants
   const ICONS = [
@@ -163,7 +165,32 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
   };
   const handleAddComment = () => {
     if (!canEdit) return;
-    if (newComment.trim()) { addComment(cardId, newComment.trim()); setNewComment(''); }
+    if (newComment.trim()) { 
+      addComment(cardId, newComment.trim()); 
+      
+      // Parse mentions
+      const mentionRegex = /@([\w\s]+)/g;
+      const mentions = [...newComment.matchAll(mentionRegex)].map(m => m[1].toLowerCase().trim());
+      
+      if (mentions.length > 0) {
+        mentions.forEach(mention => {
+          // Find member by first name or generic include
+          const matchingMember = members.find(m => m.name.toLowerCase().includes(mention.split(' ')[0]));
+          if (matchingMember && list && matchingMember.id !== currentUser?.id) {
+             useKanbanStore.getState().addNotification(
+                'Nova Menção',
+                `Você foi mencionado no cartão "${card.title}" por ${currentUser?.name || 'Alguém'}.`,
+                `/board/${list.boardId}`,
+                'info',
+                matchingMember.id
+             );
+          }
+        });
+      }
+
+      setNewComment(''); 
+      setShowMentionSuggestions(false);
+    }
   };
   const handleSetDueDate = (val: string) => { setDueDate(val); updateCard(cardId, { dueDate: val || undefined }); };
   const handleSetStartDate = (val: string) => { setStartDate(val); updateCard(cardId, { startDate: val || undefined }); };
@@ -885,8 +912,44 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
               </div>
               {canEdit && (
                 <div className="p-3 bg-card border-t border-border">
-                  <div className="flex flex-col gap-2">
-                    <textarea value={newComment} onChange={e => setNewComment(e.target.value)}
+                  <div className="flex flex-col gap-2 relative">
+                    {showMentionSuggestions && (
+                      <div className="absolute bottom-full left-0 mb-1 w-full bg-popover border border-border shadow-lg rounded-md z-50 overflow-hidden max-h-40 overflow-y-auto">
+                        {members.filter(m => m.name.toLowerCase().includes(mentionQuery)).map(m => (
+                          <button
+                            key={m.id}
+                            onClick={() => {
+                              const words = newComment.split(/(?=\s)/); // split but keep spaces
+                              // find the last word that starts with @ and ends with the query
+                              for (let i = words.length - 1; i >= 0; i--) {
+                                if (words[i].trim().startsWith('@')) {
+                                  words[i] = words[i].replace(/@\S*$/, `@${m.name} `);
+                                  break;
+                                }
+                              }
+                              setNewComment(words.join(''));
+                              setShowMentionSuggestions(false);
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors flex items-center gap-2"
+                          >
+                            <img src={m.avatar} alt={m.name} className="w-5 h-5 rounded-full object-cover" />
+                            <span className="font-medium text-foreground">{m.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <textarea value={newComment} 
+                      onChange={e => {
+                        const text = e.target.value;
+                        setNewComment(text);
+                        const match = text.match(/@(\S*)$/);
+                        if (match) {
+                           setMentionQuery(match[1].toLowerCase());
+                           setShowMentionSuggestions(true);
+                        } else {
+                           setShowMentionSuggestions(false);
+                        }
+                      }}
                       onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddComment(); } }}
                       placeholder="Escreva um comentário... Use @nome para mencionar"
                       className="w-full bg-secondary rounded px-3 py-2 text-xs outline-none border border-border focus:border-primary resize-none min-h-[60px]" />

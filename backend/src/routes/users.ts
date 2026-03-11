@@ -59,6 +59,39 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     }
 });
 
+// POST /api/users - Create a new user (Pending / Invited)
+router.post('/', async (req: AuthRequest, res: Response) => {
+    const { email, name, role } = req.body;
+    
+    if (!email) {
+        return res.status(400).json({ error: 'Email is required' });
+    }
+
+    try {
+        const existingUser = await prisma.user.findUnique({
+            where: { email }
+        });
+
+        if (existingUser) {
+            return res.status(400).json({ error: 'User already exists' });
+        }
+
+        const newUser = await prisma.user.create({
+            data: {
+                email,
+                name: name || email.split('@')[0],
+                role: role || 'pending',
+                picture: ''
+            }
+        });
+
+        res.status(201).json(newUser);
+    } catch (error) {
+        console.error('Error creating user:', error);
+        res.status(500).json({ error: 'Could not create user' });
+    }
+});
+
 // PUT /api/users/:id/role - Update user role and permissions
 router.put('/:id/role', async (req: AuthRequest, res: Response) => {
     const id = req.params.id as string;

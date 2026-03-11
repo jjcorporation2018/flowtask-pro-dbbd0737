@@ -37,18 +37,38 @@ export default function OportunidadesDashboard() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Simulando delay de carregamento de métricas pesadas
-        const timer = setTimeout(() => {
-            setLoading(false);
-        }, 600);
-        return () => clearTimeout(timer);
+        let isMounted = true;
+        
+        const loadMetrics = () => {
+            if (!isMounted) return;
+            setLoading(true);
+            // Simulate API roundtrip/calculation and refresh UI
+            setTimeout(() => {
+                if (isMounted) setLoading(false);
+            }, 600);
+        };
+
+        // Initial load
+        loadMetrics();
+
+        // Refresh when gaining window focus
+        window.addEventListener('focus', loadMetrics);
+
+        // Refresh periodically if staying on screen (every 5 min)
+        const interval = setInterval(loadMetrics, 5 * 60 * 1000);
+
+        return () => {
+            isMounted = false;
+            window.removeEventListener('focus', loadMetrics);
+            clearInterval(interval);
+        };
     }, []);
 
     if (loading) {
         return (
             <div className="flex-1 flex flex-col items-center justify-center min-h-[400px]">
                 <Loader2 className="h-10 w-10 text-primary animate-spin mb-4" />
-                <p className="text-muted-foreground font-medium animate-pulse">Calculando métricas nacionais do PNCP...</p>
+                <p className="text-muted-foreground font-medium animate-pulse">Atualizando métricas nacionais do PNCP...</p>
             </div>
         );
     }

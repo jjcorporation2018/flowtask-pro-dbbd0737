@@ -53,8 +53,12 @@ router.post('/google', async (req: Request, res: Response) => {
         if (user.role === 'disabled') {
             return res.status(403).json({ error: 'Sua conta foi desativada pelo administrador.' });
         }
-        if (user.role === 'pending') {
-            return res.status(403).json({ error: 'Conta registrada! Aguarde a aprovação de um Administrador.' });
+        if (user.role === 'pending' || user.role === 'invited') {
+            // Auto-activate pending user upon first Google login
+            user = await prisma.user.update({
+                where: { email },
+                data: { role: 'default', name: name || user.name, picture: picture || user.picture, googleId }
+            });
         }
 
         // 3. Issue our own internal JWT Session Token

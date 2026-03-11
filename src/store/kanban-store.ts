@@ -141,12 +141,12 @@ export const useKanbanStore = create<KanbanState>()(
       })),
       markAllNotificationsRead: (userId) => set(s => ({
         notifications: s.notifications.map(n => {
-          if (!userId || n.userId === userId) return { ...n, read: true };
+          if (!userId || n.userId === userId || !n.userId) return { ...n, read: true };
           return n;
         })
       })),
       clearNotifications: (userId) => set(s => ({
-        notifications: userId ? s.notifications.filter(n => n.userId !== userId) : []
+        notifications: userId ? s.notifications.filter(n => n.userId !== userId && n.userId !== undefined) : []
       })),
 
       setUndoAction: (action) => set({ undoAction: action }),

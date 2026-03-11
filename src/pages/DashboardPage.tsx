@@ -160,7 +160,7 @@ const Dashboard = () => {
 
     // 3. Documents
     if (canDocs) {
-      documents.filter(d => !d.trashed && safeDateObject(d.expirationDate) >= today && safeDateObject(d.expirationDate) <= futureLimit).forEach(d => {
+      documents.filter(d => d.expirationDate && !d.trashed && safeDateObject(d.expirationDate) >= today && safeDateObject(d.expirationDate) <= futureLimit).forEach(d => {
         events.push({ id: d.id, title: `Doc Expirando: ${d.title}`, date: safeDateObject(d.expirationDate), type: 'documento', color: 'text-yellow-500', icon: FileText, url: '/documentacao' });
       });
     }

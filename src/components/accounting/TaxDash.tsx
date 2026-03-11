@@ -17,7 +17,7 @@ export const TaxDash = () => {
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const currentYear = String(now.getFullYear());
 
-    const companyTaxes = taxObligations.filter(t => t.companyId === activeCompany?.id);
+    const companyTaxes = taxObligations.filter(t => t.companyId === activeCompany?.id && !t.trashedAt);
     const visibleTaxes = companyTaxes.filter(t => showPaid ? true : t.status === 'pending');
 
     const companySettings = activeCompany ? settings[activeCompany.id] : null;

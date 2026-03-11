@@ -70,7 +70,7 @@ export default function AdminDashboardPage() {
         loadUsers();
     }, []);
 
-    const handleAddUser = () => {
+    const handleAddUser = async () => {
         if (!newEmail.match(/^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/g)) {
             toast.error("Por favor, informe um e-mail válido.");
             return;
@@ -81,14 +81,21 @@ export default function AdminDashboardPage() {
             return;
         }
 
-        toast.info(
-            "O novo sistema não exige pré-cadastro. Peça ao colaborador que faça Login com o Google diretamente, e seu e-mail aparecerá aqui para ser Aprovado (como Usuário Normal ou Administrador).",
-            { duration: 8000 }
-        );
-
-        setIsAdding(false);
-        setNewEmail('');
-        setNewName('');
+        try {
+            toast.loading("Autorizando e-mail...", { id: 'add-email' });
+            await api.post('/users', {
+                email: newEmail.toLowerCase(),
+                name: newEmail.split('@')[0],
+                role: 'pending' // Creates directly as pending
+            });
+            toast.success("E-mail autorizado com sucesso. Status: Pendente.", { id: 'add-email' });
+            loadUsers();
+            setIsAdding(false);
+            setNewEmail('');
+        } catch (error) {
+            console.error(error);
+            toast.error("Erro ao autorizar e-mail.", { id: 'add-email' });
+        }
     };
 
     const togglePermission = async (userId: string, perm: keyof SystemUser['permissions']) => {
@@ -223,80 +230,19 @@ export default function AdminDashboardPage() {
                         <Mail className="w-5 h-5 text-primary" /> Adicionar Novo Acesso
                     </h3>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                        <div>
-                            <label className="text-xs uppercase font-bold text-muted-foreground mb-1.5 block">E-mail do Google (Conta de Login)</label>
-                            <input
-                                autoFocus
-                                type="email"
-                                value={newEmail}
-                                onChange={e => setNewEmail(e.target.value)}
-                                placeholder="exemplo@gmail.com"
-                                className="w-full bg-background border border-border rounded px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
-                            />
-                        </div>
-                        <div>
-                            <label className="text-xs uppercase font-bold text-muted-foreground mb-1.5 block">Nome do Colaborador (Opcional)</label>
-                            <input
-                                type="text"
-                                value={newName}
-                                onChange={e => setNewName(e.target.value)}
-                                placeholder="Nome Completo"
-                                className="w-full bg-background border border-border rounded px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="bg-background rounded-lg p-4 border border-border flex flex-col md:flex-row gap-6">
-                        <div className="flex-1">
-                            <label className="text-xs uppercase font-bold text-muted-foreground mb-2 block">Nível de Acesso (Cargo)</label>
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={() => setNewRole('USER')}
-                                    className={`flex-1 py-1.5 px-3 text-xs font-bold rounded flex items-center justify-center gap-2 transition-colors ${newRole === 'USER' ? 'bg-secondary text-foreground' : 'bg-transparent text-muted-foreground border border-border/50 hover:bg-secondary/50'}`}
-                                >
-                                    <Users className="w-3.5 h-3.5" /> Normal
-                                </button>
-                                <button
-                                    onClick={() => setNewRole('ADMIN')}
-                                    className={`flex-1 py-1.5 px-3 text-xs font-bold rounded flex items-center justify-center gap-2 transition-colors ${newRole === 'ADMIN' ? 'bg-primary/20 text-primary border border-primary/30' : 'bg-transparent text-muted-foreground border border-border/50 hover:bg-secondary/50'}`}
-                                >
-                                    <ShieldAlert className="w-3.5 h-3.5" /> Administrador
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="w-px bg-border hidden md:block" />
-
-                        <div className="flex-[2]">
-                            <label className="text-xs uppercase font-bold text-muted-foreground mb-3 block">Permissões Específicas {newRole === 'ADMIN' && '(Admins têm acesso total)'}</label>
-                            <div className="flex flex-wrap gap-4">
-                                <label className="flex items-center gap-2 cursor-pointer opacity-50">
-                                    <input type="checkbox" checked={newPerms.canView} readOnly className="rounded border-border bg-background text-primary focus:ring-primary h-4 w-4" />
-                                    <span className="text-sm">Visualizar (Sempre)</span>
-                                </label>
-                                <label className={`flex items-center gap-2 cursor-pointer ${newRole === 'ADMIN' ? 'opacity-50' : ''}`}>
-                                    <input
-                                        type="checkbox"
-                                        checked={newRole === 'ADMIN' ? true : newPerms.canEdit}
-                                        onChange={() => newRole !== 'ADMIN' && setNewPerms(p => ({ ...p, canEdit: !p.canEdit }))}
-                                        disabled={newRole === 'ADMIN'}
-                                        className="rounded border-border bg-background text-primary focus:ring-primary h-4 w-4"
-                                    />
-                                    <span className="text-sm">Editar e Inserir</span>
-                                </label>
-                                <label className={`flex items-center gap-2 cursor-pointer ${newRole === 'ADMIN' ? 'opacity-50' : ''}`}>
-                                    <input
-                                        type="checkbox"
-                                        checked={newRole === 'ADMIN' ? true : newPerms.canDownload}
-                                        onChange={() => newRole !== 'ADMIN' && setNewPerms(p => ({ ...p, canDownload: !p.canDownload }))}
-                                        disabled={newRole === 'ADMIN'}
-                                        className="rounded border-border bg-background text-primary focus:ring-primary h-4 w-4"
-                                    />
-                                    <span className="text-sm">Exportar / Baixar PDFs</span>
-                                </label>
-                            </div>
-                        </div>
+                    <div className="mb-6">
+                        <label className="text-xs uppercase font-bold text-muted-foreground mb-1.5 block">E-mail a ser Autorizado</label>
+                        <input
+                            autoFocus
+                            type="email"
+                            value={newEmail}
+                            onChange={e => setNewEmail(e.target.value)}
+                            placeholder="exemplo@gmail.com"
+                            className="w-full bg-background border border-border rounded px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
+                        />
+                        <p className="text-xs text-muted-foreground mt-2">
+                            Ao registrar este e-mail, ele aparecerá na lista como <strong>Pendente</strong>. Assim que o usuário realizar o primeiro login com o Google, o acesso dele será alterado automaticamente para <strong>Ativo</strong>.
+                        </p>
                     </div>
 
                     <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-border">
