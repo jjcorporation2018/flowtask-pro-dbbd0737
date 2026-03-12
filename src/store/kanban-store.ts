@@ -919,6 +919,11 @@ export const useKanbanStore = create<KanbanState>()(
         ...state,
         folders: state.folders.map(f => ({ ...f, sideImage: undefined })),
         boards: state.boards.map(b => ({ ...b, backgroundImage: undefined })),
+        cards: state.cards.map(c => ({ 
+          ...c, 
+          attachments: [], // Strip heavy base64 media
+          comments: [] // Strip comments to save space
+        })),
         members: [] // Drop members from local storage to prevent QuotaExceededError and ensure fresh sync
       })
     }
