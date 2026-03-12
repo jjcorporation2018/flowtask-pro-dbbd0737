@@ -68,7 +68,29 @@ const FolderPage = () => {
                       const file = e.target.files?.[0];
                       if (file) {
                         const reader = new FileReader();
-                        reader.onload = (event) => updateFolder(folder.id, { sideImage: event.target?.result as string });
+                        reader.onload = (event) => {
+                          const img = new Image();
+                          img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            let width = img.width;
+                            let height = img.height;
+                            const MAX_WIDTH = 1000;
+                            const MAX_HEIGHT = 1000;
+                            if (width > height) {
+                              if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+                            } else {
+                              if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+                            }
+                            canvas.width = width;
+                            canvas.height = height;
+                            const ctx = canvas.getContext('2d');
+                            ctx?.drawImage(img, 0, 0, width, height);
+                            // Compress to WebP at 75% quality
+                            const compressedBase64 = canvas.toDataURL('image/webp', 0.75);
+                            updateFolder(folder.id, { sideImage: compressedBase64 });
+                          };
+                          img.src = event.target?.result as string;
+                        };
                         reader.readAsDataURL(file);
                       }
                     }}
