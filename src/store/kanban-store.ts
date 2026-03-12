@@ -732,6 +732,24 @@ export const useKanbanStore = create<KanbanState>()(
             budgets: updatedBudgets
           };
         });
+
+        // AUTO-SYNC GOOGLE CALENDAR EM BACKGROUND
+        const currentUser = useAuthStore.getState().currentUser;
+        if (currentUser && (currentUser.role === 'ADMIN' || currentUser.permissions?.canEdit)) {
+          // If the update involves fields relevant to the calendar, trigger sync silently
+          if (data.dueDate !== undefined || data.trashed !== undefined || data.archived !== undefined || data.completed !== undefined || data.title) {
+            setTimeout(() => {
+              const currentCards = get().cards;
+              const eventsToPush = currentCards.filter(c => !c.archived && !c.trashed && c.dueDate && !c.completed).map(c => ({
+                  id: c.id,
+                  title: `[Polaryon] ${c.title}`,
+                  date: c.dueDate
+              }));
+              api.post('/calendar/sync', { eventsToPush }).catch(() => {});
+            }, 1000); // Slight delay to ensure state is committed
+          }
+        }
+
         api.put(`/kanban/cards/${id}`, data).catch(console.error);
       },
       deleteCard: (id) => {

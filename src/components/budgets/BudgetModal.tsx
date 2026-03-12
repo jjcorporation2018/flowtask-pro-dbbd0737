@@ -1295,7 +1295,7 @@ const BudgetModal = ({ budget, onClose }: BudgetModalProps) => {
                 title: formData.title || 'Novo Orçamento',
                 type: formData.type as BudgetType || 'Produto',
                 status: formData.status as BudgetStatus || 'Aguardando',
-                cardId: formData.cardId || '',
+                cardId: formData.cardId || undefined,
                 items: formData.items || [],
                 totalValue: formData.totalValue || 0,
             };
@@ -1510,6 +1510,12 @@ const BudgetModal = ({ budget, onClose }: BudgetModalProps) => {
                                         <h4 className="font-bold text-foreground text-sm">{supplierProfile.nome_fantasia || supplierProfile.razao_social}</h4>
                                         <p className="text-xs text-muted-foreground mt-0.5">{supplierProfile.razao_social}</p>
                                     </div>
+                                    
+                                    {supplierProfile.customLink && (
+                                        <a href={supplierProfile.customLink} target="_blank" rel="noopener noreferrer" className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-xs font-bold transition-colors">
+                                            <ExternalLink className="w-3.5 h-3.5" /> Acessar Link Externo
+                                        </a>
+                                    )}
 
                                     <div className="space-y-2 text-xs">
                                         {supplierProfile.cnpj && (
@@ -1813,6 +1819,12 @@ const BudgetModal = ({ budget, onClose }: BudgetModalProps) => {
                                         <h4 className="font-bold text-foreground text-sm">{transporterProfile.nome_fantasia || transporterProfile.razao_social}</h4>
                                         <p className="text-xs text-muted-foreground mt-0.5">{transporterProfile.razao_social}</p>
                                     </div>
+                                    
+                                    {transporterProfile.customLink && (
+                                        <a href={transporterProfile.customLink} target="_blank" rel="noopener noreferrer" className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-xs font-bold transition-colors">
+                                            <ExternalLink className="w-3.5 h-3.5" /> Acessar Link Externo
+                                        </a>
+                                    )}
 
                                     <div className="space-y-2 text-xs">
                                         {transporterProfile.cnpj && (

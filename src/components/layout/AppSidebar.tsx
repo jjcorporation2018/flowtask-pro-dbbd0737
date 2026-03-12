@@ -246,7 +246,7 @@ const AppSidebar = () => {
                 {!isCollapsed && <span>SICAF</span>}
               </a>
 
-              <a href="https://cnetmobile.estaleiro.serpro.gov.br/comprasnet-web/seguro/fornecedor/compras?compra=" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors text-sidebar-foreground hover:bg-sidebar-accent" title="Compras.gov">
+              <a href="https://www.comprasnet.gov.br/seguro/loginPortalFornecedor.asp" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors text-sidebar-foreground hover:bg-sidebar-accent" title="Compras.gov">
                 <img src="https://www.google.com/s2/favicons?sz=64&domain_url=https://www.gov.br" alt="Compras.gov" className="h-4 w-4 shrink-0 rounded-sm bg-white" />
                 {!isCollapsed && <span>Compras.gov</span>}
               </a>

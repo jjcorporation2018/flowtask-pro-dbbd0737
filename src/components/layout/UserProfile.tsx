@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { useAuthStore } from '@/store/auth-store';
+import { useKanbanStore } from '@/store/kanban-store';
 import { LogOut, User, Camera, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -24,6 +25,16 @@ export default function UserProfile() {
             name: editName.trim(),
             photoURL: editPhoto.trim() || undefined
         });
+
+        // Cascata automática para o Kanban e Equipe
+        const kanbanStore = useKanbanStore.getState();
+        const updatedMembers = kanbanStore.members.map(m => 
+            m.id === currentUser.id 
+                ? { ...m, name: editName.trim(), avatar: editPhoto.trim() || '' }
+                : m
+        );
+        kanbanStore.setMembers(updatedMembers);
+
         setIsEditing(false);
         toast.success("Perfil atualizado com sucesso.");
     };

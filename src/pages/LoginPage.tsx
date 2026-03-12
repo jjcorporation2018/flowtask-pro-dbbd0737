@@ -124,12 +124,15 @@ export default function LoginPage() {
 
             const { token, user } = res.data;
 
+            // Check if local systemUser already exists to preserve non-Google fields
+            const existingSystemUser = useAuthStore.getState().systemUsers.find(u => u.id === user.id || u.email.toLowerCase() === user.email.toLowerCase());
+
             // Map the backend DB user to the frontend SystemUser structure
             const systemUser = {
-                id: user.id,
+                id: user.id || existingSystemUser?.id || crypto.randomUUID(),
                 email: user.email,
-                name: user.name,
-                photoURL: user.picture,
+                name: existingSystemUser?.name || user.name, // Prefer local name if changed
+                photoURL: existingSystemUser?.photoURL || user.picture, // PRESERVE local photo if exists, fallback to Google
                 role: user.role.toUpperCase() === 'ADMIN' ? 'ADMIN' : (user.role.toUpperCase() === 'CONTADOR' ? 'CONTADOR' : 'USER'),
                 permissions: user.role.toUpperCase() === 'ADMIN'
                     ? { canView: true, canEdit: true, canDownload: true }
@@ -137,7 +140,7 @@ export default function LoginPage() {
                         ? { canView: true, canEdit: false, canDownload: true }
                         : { canView: true, canEdit: false, canDownload: false }),
                 status: 'active',
-                createdAt: new Date().toISOString()
+                createdAt: existingSystemUser?.createdAt || new Date().toISOString()
             };
 
 
