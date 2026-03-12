@@ -169,7 +169,20 @@ const DocumentForm = ({ onClose, editingDoc }: DocumentFormProps) => {
                             </div>
 
                             <div className="space-y-1">
-                                <label className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-1"><LinkIcon className="h-3 w-3" /> Link (URL)</label>
+                                <label className="text-xs font-bold text-muted-foreground uppercase flex justify-between items-center w-full">
+                                    <span className="flex items-center gap-1"><LinkIcon className="h-3 w-3" /> Link (URL)</span>
+                                    {formData.link && (
+                                        <a 
+                                            href={formData.link.startsWith('http') ? formData.link : `https://${formData.link}`} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer" 
+                                            className="text-[10px] text-blue-500 hover:text-blue-600 hover:underline flex items-center gap-1 bg-blue-500/10 px-2 py-0.5 rounded transition-colors"
+                                            title="Acessar link em nova guia"
+                                        >
+                                            Acessar Link <LinkIcon className="h-2.5 w-2.5" />
+                                        </a>
+                                    )}
+                                </label>
                                 <input
                                     type="url"
                                     value={formData.link}

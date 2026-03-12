@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fixDateToBRT } from "@/lib/utils";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import AppHeader from "@/components/layout/AppHeader";
 import AppSidebar from "@/components/layout/AppSidebar";
@@ -167,7 +168,8 @@ const AppContent = () => {
 
       docStore.documents.forEach(doc => {
         if (doc.status !== 'valid') {
-          const expirationDate = new Date(doc.expirationDate);
+          const expirationDate = fixDateToBRT(doc.expirationDate);
+          if (!expirationDate) return;
           const diffDays = Math.ceil((expirationDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
           // Determine if we need to notify

@@ -12,7 +12,9 @@ const FolderPage = () => {
   const navigate = useNavigate();
   const { folders, boards, lists, cards, addBoard, updateBoard, updateFolder } = useKanbanStore();
   const folder = folders.find(f => f.id === folderId);
-  const folderBoards = boards.filter(b => b.folderId === folderId && !b.trashed);
+  const folderBoards = boards
+    .filter(b => b.folderId === folderId && !b.trashed)
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
 
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState('');
@@ -21,6 +23,8 @@ const FolderPage = () => {
   const [folderName, setFolderName] = useState(folder?.name || '');
   const [editingBoardId, setEditingBoardId] = useState<string | null>(null);
   const [showFolderColorPicker, setShowFolderColorPicker] = useState(false);
+  const [renamingBoardId, setRenamingBoardId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
 
   if (!folder) return <div className="flex-1 flex items-center justify-center text-muted-foreground">Pasta não encontrada</div>;
 
@@ -116,9 +120,30 @@ const FolderPage = () => {
                       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
                     )}
                     <div className="relative z-10 flex flex-col h-full">
-                      <span className="font-bold text-sm text-white drop-shadow-md">
-                        {board.name}
-                      </span>
+                      {renamingBoardId === board.id ? (
+                        <input
+                          autoFocus
+                          value={renameValue}
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              if (renameValue.trim()) updateBoard(board.id, { name: renameValue.trim() });
+                              setRenamingBoardId(null);
+                            }
+                            if (e.key === 'Escape') setRenamingBoardId(null);
+                          }}
+                          onBlur={() => {
+                            if (renameValue.trim()) updateBoard(board.id, { name: renameValue.trim() });
+                            setRenamingBoardId(null);
+                          }}
+                          onClick={e => e.preventDefault()}
+                          className="bg-black/50 text-white border-none outline-none font-bold text-sm w-full rounded px-1"
+                        />
+                      ) : (
+                        <span className="font-bold text-sm text-white drop-shadow-md">
+                          {board.name}
+                        </span>
+                      )}
                       <p className="text-xs mt-auto text-white drop-shadow-md font-medium">
                         {boardLists.length} listas · {boardCards.length} cards
                       </p>
@@ -129,6 +154,10 @@ const FolderPage = () => {
                     <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); updateBoard(board.id, { isFavorite: !board.isFavorite }); }}
                       className="p-1.5 rounded hover:bg-black/30 transition-colors" style={{ color: 'rgba(255,255,255,0.9)' }}>
                       <Star className={`h-3.5 w-3.5 ${board.isFavorite ? 'fill-yellow-400 text-yellow-400' : ''}`} />
+                    </button>
+                    <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); setRenamingBoardId(board.id); setRenameValue(board.name); }}
+                      className="p-1.5 rounded hover:bg-black/30 transition-colors" style={{ color: 'rgba(255,255,255,0.9)' }} title="Renomear">
+                      <Pencil className="h-3.5 w-3.5" />
                     </button>
                     <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); setEditingBoardId(editingBoardId === board.id ? null : board.id); }}
                       className="p-1.5 rounded hover:bg-black/30 transition-colors" style={{ color: 'rgba(255,255,255,0.9)' }}>

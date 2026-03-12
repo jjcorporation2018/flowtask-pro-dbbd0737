@@ -15,7 +15,8 @@ import {
     endOfWeek
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, FileText, AlertTriangle, CheckCircle, Calendar as CalendarIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileText, AlertTriangle, CheckCircle, Calendar as CalendarIcon, Link as LinkIcon } from 'lucide-react';
+import { fixDateToBRT } from '@/lib/utils';
 
 interface DocumentCalendarViewProps {
     documents: CompanyDocument[];
@@ -33,7 +34,8 @@ const DocumentCalendarView = ({ documents, onEditDocument }: DocumentCalendarVie
     const getDocumentsForDate = (date: Date) => {
         return documents.filter(doc => {
             if (!doc.expirationDate) return false;
-            const docDate = parseISO(doc.expirationDate);
+            const docDate = fixDateToBRT(doc.expirationDate);
+            if (!docDate) return false;
             return isSameDay(docDate, date) && !doc.trashed;
         });
     };
@@ -133,19 +135,30 @@ const DocumentCalendarView = ({ documents, onEditDocument }: DocumentCalendarVie
 
                             <div className="flex-1 overflow-y-auto space-y-1.5 custom-scrollbar pr-1">
                                 {docsForDay.map(doc => (
-                                    <button
-                                        key={doc.id}
-                                        onClick={() => onEditDocument(doc)}
-                                        className={`w-full text-left p-1.5 rounded border text-[10px] sm:text-xs font-medium cursor-pointer transition-all hover:brightness-95 hover:shadow-sm ${getStatusBg(doc.status)}`}
-                                        title={doc.title}
-                                    >
-                                        <div className="flex items-center gap-1.5 truncate">
+                                    <div key={doc.id} className={`w-full flex items-center p-1.5 rounded border text-[10px] sm:text-xs font-medium transition-all hover:brightness-95 hover:shadow-sm group ${getStatusBg(doc.status)}`}>
+                                        <button
+                                            onClick={() => onEditDocument(doc)}
+                                            className="flex items-center gap-1.5 truncate flex-1 cursor-pointer text-left"
+                                            title={doc.title}
+                                        >
                                             <div className="shrink-0">
                                                 {getStatusIcon(doc.status)}
                                             </div>
-                                            <span className="truncate flex-1">{doc.title}</span>
-                                        </div>
-                                    </button>
+                                            <span className="truncate">{doc.title}</span>
+                                        </button>
+                                        {doc.link && (
+                                            <a
+                                                href={doc.link.startsWith('http') ? doc.link : `https://${doc.link}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="ml-1 shrink-0 p-1 bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/20 rounded transition-colors"
+                                                title="Acessar Link (Nova Guia)"
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                <LinkIcon className="h-3 w-3" />
+                                            </a>
+                                        )}
+                                    </div>
                                 ))}
                             </div>
                         </div>

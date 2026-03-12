@@ -52,9 +52,17 @@ interface DocumentStore {
     cleanOldTrash: () => void;
 }
 
+import { fixDateToBRT } from '@/lib/utils';
+
 const checkStatus = (expirationDate: string): DocumentStatus => {
-    const expDate = new Date(expirationDate);
+    const expDate = fixDateToBRT(expirationDate);
+    if (!expDate) return 'expired';
+    
+    // Normalize "now" to midnight to compare only dates
     const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    expDate.setHours(0, 0, 0, 0);
+    
     const diffTime = expDate.getTime() - now.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 

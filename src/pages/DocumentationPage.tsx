@@ -4,6 +4,7 @@ import { Plus, Search, FileText, AlertTriangle, CheckCircle, Trash2, Edit, Layou
 import { format } from 'date-fns';
 import DocumentForm from '@/components/documentation/DocumentForm';
 import DocumentCalendarView from '@/components/documentation/DocumentCalendarView';
+import { fixDateToBRT } from '@/lib/utils';
 
 import { useAuthStore } from '@/store/auth-store';
 
@@ -203,7 +204,7 @@ const DocumentationPage = () => {
                                                     </td>
                                                     <td className="px-6 py-4 font-medium">
                                                         <span className={doc.status === 'expired' ? 'text-red-500' : doc.status === 'expiring' ? 'text-yellow-500' : ''}>
-                                                            {doc.expirationDate ? format(new Date(doc.expirationDate), 'dd/MM/yyyy') : '-'}
+                                                            {doc.expirationDate ? format(fixDateToBRT(doc.expirationDate)!, 'dd/MM/yyyy') : '-'}
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 flex items-center justify-end gap-2">
