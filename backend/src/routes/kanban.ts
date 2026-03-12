@@ -42,6 +42,8 @@ router.put('/folders/:id', async (req: Request, res: Response) => {
         const { boards, ...data } = req.body;
         
         console.log(`[Folder Update] ID: ${req.params.id}`);
+        console.log(`[Folder Update] Received keys:`, Object.keys(req.body));
+        
         if (data.sideImage) {
             console.log(`[Folder Update] Received sideImage of length: ${data.sideImage.length}`);
         } else {

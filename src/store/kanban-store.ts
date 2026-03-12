@@ -837,7 +837,14 @@ export const useKanbanStore = create<KanbanState>()(
         get().updateCard(cardId, { timeEntries: [] });
       },
     }),
-    { name: 'jj-kanban-store' }
+    { 
+      name: 'jj-kanban-store',
+      partialize: (state) => ({
+        ...state,
+        folders: state.folders.map(f => ({ ...f, sideImage: undefined })),
+        boards: state.boards.map(b => ({ ...b, backgroundImage: undefined }))
+      })
+    }
   )
 );
 

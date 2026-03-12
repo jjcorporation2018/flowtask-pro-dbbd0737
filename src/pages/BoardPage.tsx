@@ -43,7 +43,7 @@ const BoardPage = () => {
   const board = useMemo(() => boards.find(b => b.id === boardId), [boards, boardId]);
   const folder = useMemo(() => board ? folders.find(f => f.id === board.folderId) : null, [board, folders]);
   const boardLists = useMemo(() => lists
-    .filter(l => l.boardId === boardId)
+    .filter(l => l.boardId === boardId && !l.archived && !l.trashed)
     .sort((a, b) => a.position - b.position), [lists, boardId]);
 
   const currentUser = useAuthStore(state => state.currentUser);
