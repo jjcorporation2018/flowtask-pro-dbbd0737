@@ -346,6 +346,20 @@ const EntryFormModal = ({ open, onOpenChange, type, onSuccess, existingEntryId }
                                 {bankAccounts.filter(b => b.companyId === activeCompany?.id).map(bank => (
                                     <option className="bg-background text-foreground" key={bank.id} value={bank.id}>{bank.name}</option>
                                 ))}
+                                <optgroup label="Bancos Principais Brasileiros">
+                                    <option className="bg-background text-foreground" value="itau">Itaú Unibanco</option>
+                                    <option className="bg-background text-foreground" value="bb">Banco do Brasil</option>
+                                    <option className="bg-background text-foreground" value="bradesco">Bradesco</option>
+                                    <option className="bg-background text-foreground" value="caixa">Caixa Econômica Federal</option>
+                                    <option className="bg-background text-foreground" value="santander">Santander</option>
+                                    <option className="bg-background text-foreground" value="nubank">Nubank</option>
+                                    <option className="bg-background text-foreground" value="inter">Banco Inter</option>
+                                    <option className="bg-background text-foreground" value="c6">C6 Bank</option>
+                                    <option className="bg-background text-foreground" value="sicoob">Sicoob</option>
+                                    <option className="bg-background text-foreground" value="sicredi">Sicredi</option>
+                                    <option className="bg-background text-foreground" value="btg">BTG Pactual</option>
+                                    <option className="bg-background text-foreground" value="cora">Cora</option>
+                                </optgroup>
                             </select>
                         </div>
 

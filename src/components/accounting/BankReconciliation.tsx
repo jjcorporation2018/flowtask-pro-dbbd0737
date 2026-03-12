@@ -1,20 +1,8 @@
-import React, { useState } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useState, useRef } from 'react';
 import { useAccountingStore } from '@/store/accounting-store';
 import { useKanbanStore } from '@/store/kanban-store';
-import { Check, Columns, RefreshCw, Link2, X, Building2, ShieldCheck, Loader2 } from 'lucide-react';
+import { Check, Columns, RefreshCw, UploadCloud, FileText } from 'lucide-react';
 import { toast } from 'sonner';
-
-const BANKS_AVAILABLE = [
-    { id: 'itau', name: 'Itaú Unibanco', logoBg: 'bg-orange-500', logoText: 'text-white' },
-    { id: 'bb', name: 'Banco do Brasil', logoBg: 'bg-yellow-400', logoText: 'text-blue-900' },
-    { id: 'nubank', name: 'Nubank', logoBg: 'bg-purple-600', logoText: 'text-white' },
-    { id: 'bradesco', name: 'Bradesco', logoBg: 'bg-red-600', logoText: 'text-white' },
-    { id: 'santander', name: 'Santander', logoBg: 'bg-red-500', logoText: 'text-white' },
-    { id: 'caixa', name: 'Caixa Econômica', logoBg: 'bg-blue-600', logoText: 'text-white' },
-    { id: 'cora', name: 'Cora', logoBg: 'bg-pink-500', logoText: 'text-white' },
-    { id: 'inter', name: 'Banco Inter', logoBg: 'bg-orange-500', logoText: 'text-white' },
-];
 
 export const BankReconciliation = () => {
     const { entries, bankTransactions, addBankTransaction, reconcileTransaction } = useAccountingStore();
@@ -23,9 +11,8 @@ export const BankReconciliation = () => {
 
     const [selectedEntry, setSelectedEntry] = useState<string | null>(null);
     const [selectedTransaction, setSelectedTransaction] = useState<string | null>(null);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [connectingBank, setConnectingBank] = useState<string | null>(null);
-    const [connectedBankState, setConnectedBankState] = useState<boolean>(false);
+    
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const companyEntries = entries.filter(e => e.companyId === activeCompany?.id && e.status === 'pending');
     const pendingTransactions = bankTransactions.filter(t => t.companyId === activeCompany?.id && t.status === 'pending');
@@ -63,41 +50,142 @@ export const BankReconciliation = () => {
         setSelectedTransaction(null);
     };
 
-    const simulateBankImport = () => {
-        if (!activeCompany) return;
-        // Simulate importing a bank statement line that matches a pending entry roughly
-        if (companyEntries.length > 0) {
-            const entryToMatch = companyEntries[Math.floor(Math.random() * companyEntries.length)];
-            addBankTransaction({
-                companyId: activeCompany.id,
-                date: new Date().toISOString(),
-                description: `TRANSFERENCIA - ${entryToMatch.type === 'revenue' ? 'REC' : 'PAG'}`,
-                amount: entryToMatch.amount,
-                type: entryToMatch.type === 'revenue' ? 'credit' : 'debit',
-                status: 'pending'
-            });
-            toast.success("Extrato bancário simulado importado (com match exato).");
-        } else {
-            addBankTransaction({
-                companyId: activeCompany.id,
-                date: new Date().toISOString(),
-                description: "TARIFA BANCARIA",
-                amount: 45.90,
-                type: 'debit',
-                status: 'pending'
-            });
-            toast.success("Nova tarifa bancária identificada no extrato.");
-        }
+    const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file || !activeCompany) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const content = e.target?.result as string;
+            
+            try {
+                let parsedTransactions = 0;
+
+                if (file.name.toLowerCase().endsWith('.ofx')) {
+                    parsedTransactions = parseOFX(content, activeCompany.id);
+                } else if (file.name.toLowerCase().endsWith('.csv')) {
+                    parsedTransactions = parseCSV(content, activeCompany.id);
+                } else {
+                    toast.error("Formato não suportado. Use .ofx ou .csv.");
+                    return;
+                }
+
+                if (parsedTransactions > 0) {
+                    toast.success(`${parsedTransactions} transações importadas com sucesso!`);
+                } else {
+                    toast.warning("Nenhuma transação válida foi encontrada no arquivo.");
+                }
+
+            } catch (err) {
+                console.error("Erro ao fazer parse do arquivo:", err);
+                toast.error("Ocorreu um erro ao ler o arquivo. Verifique se ele não está corrompido.");
+            }
+            
+            // Reset input
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
+        };
+
+        reader.readAsText(file);
     };
 
-    const handleConnectBank = (bankId: string) => {
-        setConnectingBank(bankId);
-        // Simulate Open Finance connection delay
-        setTimeout(() => {
-            setConnectingBank(null);
-            setConnectedBankState(true);
-            toast.success("Integração Open Finance preparada!");
-        }, 2000);
+    const parseOFX = (content: string, companyId: string) => {
+        let count = 0;
+        // Basic OFX parsing identifying STMTTRN blocks
+        const blocks = content.split('<STMTTRN>');
+        
+        // Skip the first split as it contains headers
+        for (let i = 1; i < blocks.length; i++) {
+            const block = blocks[i].split('</STMTTRN>')[0];
+            
+            // Extract fields using Regex
+            const amountMatch = block.match(/<TRNAMT>([^<\r\n]+)/);
+            const dateMatch = block.match(/<DTPOSTED>(\d{8})/);
+            const memoMatch = block.match(/<MEMO>([^<\r\n]+)/);
+            
+            if (amountMatch && dateMatch) {
+                const amountText = amountMatch[1].trim();
+                const amount = parseFloat(amountText.replace(/,/g, ''));
+                
+                const dateStr = dateMatch[1];
+                const date = new Date(`${dateStr.substring(0,4)}-${dateStr.substring(4,6)}-${dateStr.substring(6,8)}T12:00:00Z`);
+                
+                let description = "Transação Bancária";
+                if (memoMatch) {
+                    description = memoMatch[1].trim();
+                }
+
+                addBankTransaction({
+                    companyId: companyId,
+                    date: date.toISOString(),
+                    description: description,
+                    amount: Math.abs(amount),
+                    type: amount >= 0 ? 'credit' : 'debit',
+                    status: 'pending'
+                });
+                count++;
+            }
+        }
+        return count;
+    };
+
+    const parseCSV = (content: string, companyId: string) => {
+        let count = 0;
+        const lines = content.split('\n');
+        
+        // Assuming a generic pattern: Date, Description, Amount
+        // This is a naive heuristic parser for common bank CSVs.
+        for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+            
+            // Handle comma or semicolon parsing with quotes
+            const columns = line.split(/;|,/).map(col => col.replace(/^"|"$/g, '').trim());
+            
+            // Very loose heuristic for columns: find one date-like, one number-like, one text-like
+            let dateStr = "";
+            let description = "";
+            let amount = 0;
+            let amountFound = false;
+
+            for (const col of columns) {
+                // Determine if it's a date (DD/MM/YYYY)
+                if (/\d{2}\/\d{2}\/\d{4}/.test(col)) {
+                    dateStr = col;
+                } 
+                // Determine if it's an amount
+                else if (/^-?[\d.,]+$/.test(col) && !amountFound && col.length > 0) {
+                    const parsed = parseFloat(col.replace(/\./g, '').replace(',', '.'));
+                    if (!isNaN(parsed)) {
+                        amount = parsed;
+                        amountFound = true;
+                    }
+                }
+                // Determine if it's text
+                else if (/[A-Za-z]/.test(col) && col.length > 3) {
+                    description = description ? `${description} ${col}` : col;
+                }
+            }
+
+            if (dateStr && amountFound) {
+                const [day, month, year] = dateStr.split('/');
+                const date = new Date(`${year}-${month}-${day}T12:00:00Z`);
+                
+                if (!description) description = amount >= 0 ? 'Crédito' : 'Débito';
+
+                addBankTransaction({
+                    companyId: companyId,
+                    date: date.toISOString(),
+                    description: description.substring(0, 100),
+                    amount: Math.abs(amount),
+                    type: amount >= 0 ? 'credit' : 'debit',
+                    status: 'pending'
+                });
+                count++;
+            }
+        }
+        return count;
     };
 
     return (
@@ -108,22 +196,23 @@ export const BankReconciliation = () => {
                     Conciliação Bancária
                 </h3>
                 <div className="flex items-center gap-2">
+                    {/* Hidden file input for OFX / CSV */}
+                    <input 
+                        type="file" 
+                        accept=".ofx,.csv"
+                        className="hidden" 
+                        ref={fileInputRef}
+                        onChange={handleFileUpload}
+                    />
+
                     <button
-                        onClick={() => setIsModalOpen(true)}
-                        className={`text-xs px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors font-medium border ${connectedBankState ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30' : 'bg-primary text-primary-foreground border-primary hover:bg-primary/90'}`}
+                        onClick={() => fileInputRef.current?.click()}
+                        className="text-xs px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors font-medium border bg-primary text-primary-foreground border-primary hover:bg-primary/90"
                     >
-                        {connectedBankState ? <ShieldCheck className="h-3.5 w-3.5" /> : <Link2 className="h-3.5 w-3.5" />}
-                        {connectedBankState ? 'Banco Vinculado (API)' : 'Conectar Banco (Open Finance)'}
+                        <UploadCloud className="h-3.5 w-3.5" />
+                        Importar Arquivo (.ofx, .csv)
                     </button>
-                    {!connectedBankState && (
-                        <button
-                            onClick={simulateBankImport}
-                            className="text-xs bg-muted/50 hover:bg-muted text-foreground px-3 py-1.5 rounded flex items-center gap-1 transition-colors"
-                        >
-                            <RefreshCw className="h-3 w-3" />
-                            Simular Extrato
-                        </button>
-                    )}
+                    
                     <button
                         onClick={handleAutoReconcile}
                         className="text-xs bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 px-3 py-1.5 rounded flex items-center gap-1 transition-colors font-medium ml-2"
@@ -136,26 +225,16 @@ export const BankReconciliation = () => {
             </div>
 
             <div className="flex-1 grid grid-cols-2 divide-x divide-border relative">
-
-                {/* Overlay explaining backend dependency if connected */}
-                {connectedBankState && (
-                    <div className="absolute top-2 right-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2 text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-2 z-10 shadow-sm backdrop-blur-sm">
-                        <ShieldCheck className="h-4 w-4" />
-                        Open Finance: Sincronização em tempo real ativada (Modo Local).
-                        <button
-                            onClick={() => setConnectedBankState(false)}
-                            className="ml-2 underline hover:text-emerald-700 dark:hover:text-emerald-300"
-                        >
-                            Desconectar
-                        </button>
-                    </div>
-                )}
                 {/* Extrato Bancário */}
                 <div className="p-4 flex flex-col h-full">
                     <h4 className="text-sm font-medium text-muted-foreground mb-4">Extrato Bancário (Aberto)</h4>
                     <div className="flex-1 space-y-2 overflow-auto custom-scrollbar">
                         {pendingTransactions.length === 0 ? (
-                            <p className="text-xs text-muted-foreground italic text-center py-8">Nenhuma transação bancária pendente.</p>
+                            <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
+                                <FileText className="h-12 w-12 mb-3 opacity-20" />
+                                <p className="text-xs italic">Nenhuma transação bancária pendente.</p>
+                                <p className="text-[10px] mt-1">Importe um arquivo de extrato para começar.</p>
+                            </div>
                         ) : (
                             pendingTransactions.map(tx => (
                                 <div
@@ -217,7 +296,7 @@ export const BankReconciliation = () => {
                     Selecione uma transação do banco e um lançamento do ERP para conciliar.
                 </p>
                 <button
-                    disabled={!selectedEntry || !selectedTransaction || connectedBankState}
+                    disabled={!selectedEntry || !selectedTransaction}
                     onClick={handleReconcile}
                     className="bg-primary text-primary-foreground disabled:bg-muted disabled:text-muted-foreground px-6 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors hover:bg-primary/90"
                 >
@@ -225,89 +304,6 @@ export const BankReconciliation = () => {
                     Conciliar Selecionados
                 </button>
             </div>
-
-            {/* OPEN FINANCE MODAL */}
-            {isModalOpen && document.body ? createPortal(
-                <div className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-background rounded-xl border border-border w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
-                        <div className="flex items-center justify-between p-4 border-b border-border bg-muted/30">
-                            <div>
-                                <h3 className="font-bold flex items-center gap-2 text-foreground">
-                                    <Link2 className="h-5 w-5 text-primary" />
-                                    Conectar via Open Finance
-                                </h3>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                    Acesse o extrato em tempo real do seu banco com segurança BCB.
-                                </p>
-                            </div>
-                            <button onClick={() => setIsModalOpen(false)} className="text-muted-foreground hover:text-foreground bg-muted p-1.5 rounded-md transition-colors">
-                                <X className="h-5 w-5" />
-                            </button>
-                        </div>
-
-                        <div className="p-5 flex-1 overflow-auto custom-scrollbar">
-                            {!connectingBank && !connectedBankState && (
-                                <>
-                                    <div className="mb-4 flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 p-3 rounded-lg text-blue-600 dark:text-blue-400">
-                                        <ShieldCheck className="h-5 w-5 shrink-0" />
-                                        <p className="text-xs font-medium">Sua conexão é 100% segura, de leitura (read-only) e certificada pelo Banco Central.</p>
-                                    </div>
-                                    <h4 className="text-sm font-semibold mb-3">Selecione sua Instituição Financeira</h4>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        {BANKS_AVAILABLE.map(bank => (
-                                            <button
-                                                key={bank.id}
-                                                onClick={() => handleConnectBank(bank.id)}
-                                                className="flex items-center gap-3 p-3 rounded-xl border border-border/50 bg-muted/10 hover:border-primary/50 hover:bg-muted/30 transition-all text-left group"
-                                            >
-                                                <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${bank.logoBg}`}>
-                                                    <Building2 className={`h-4 w-4 ${bank.logoText}`} />
-                                                </div>
-                                                <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">{bank.name}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </>
-                            )}
-
-                            {connectingBank && (
-                                <div className="flex flex-col items-center justify-center py-12 text-center h-full">
-                                    <Loader2 className="h-10 w-10 text-primary animate-spin mb-4" />
-                                    <h3 className="font-bold text-lg mb-2">Redirecionando para o Banco...</h3>
-                                    <p className="text-sm text-muted-foreground max-w-[280px]">
-                                        Você precisará confirmar o acesso no aplicativo do {BANKS_AVAILABLE.find(b => b.id === connectingBank)?.name}.
-                                    </p>
-                                </div>
-                            )}
-
-                            {connectedBankState && !connectingBank && (
-                                <div className="flex flex-col items-center justify-center py-8 text-center h-full">
-                                    <div className="h-16 w-16 bg-emerald-500/20 rounded-full flex items-center justify-center mb-4">
-                                        <Check className="h-8 w-8 text-emerald-500" />
-                                    </div>
-                                    <h3 className="font-bold text-lg mb-2 text-foreground">Conta Vinculada!</h3>
-                                    <p className="text-sm text-muted-foreground mb-6">
-                                        A infraestrutura Open Finance foi configurada.
-                                    </p>
-                                    <button
-                                        onClick={() => setIsModalOpen(false)}
-                                        className="bg-primary text-primary-foreground px-6 py-2 rounded-lg hover:bg-primary/90 transition-colors font-medium text-sm"
-                                    >
-                                        Concluir
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="p-4 border-t border-border bg-muted/20 flex justify-center">
-                            <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1 opacity-70">
-                                Powered by Integração Open Finance Brasil
-                            </span>
-                        </div>
-                    </div>
-                </div>,
-                document.body
-            ) : null}
         </div>
     );
 };

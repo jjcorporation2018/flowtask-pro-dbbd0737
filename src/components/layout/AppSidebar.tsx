@@ -11,6 +11,27 @@ const AppSidebar = () => {
   const { currentUser, hasScreenAccess } = useAuthStore();
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(true);
+  
+  const [currencyQuotes, setCurrencyQuotes] = useState<{ usd: string; eur: string } | null>(null);
+
+  useEffect(() => {
+    const fetchQuotes = async () => {
+      try {
+        const response = await fetch('https://economia.awesomeapi.com.br/last/USD-BRL,EUR-BRL');
+        const data = await response.json();
+        setCurrencyQuotes({
+          usd: parseFloat(data.USDBRL.bid).toFixed(2),
+          eur: parseFloat(data.EURBRL.bid).toFixed(2)
+        });
+      } catch (error) {
+        console.error('Error fetching currency quotes:', error);
+      }
+    };
+    fetchQuotes();
+    // Update every 10 minutes
+    const interval = setInterval(fetchQuotes, 10 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Close mobile menu on route change
   useEffect(() => {
@@ -32,6 +53,21 @@ const AppSidebar = () => {
   const isAdminModule = location.pathname.startsWith('/company') || location.pathname.startsWith('/admin');
   const isAccountingModule = location.pathname.startsWith('/contabil');
   const isOportunidadesModule = location.pathname.startsWith('/oportunidades');
+
+  const { boards, folders } = useKanbanStore();
+  const isKunbunModule = location.pathname.startsWith('/folder/') || location.pathname.startsWith('/board/');
+  let kunbunFolderId = null;
+  if (isKunbunModule) {
+    if (location.pathname.startsWith('/folder/')) {
+      kunbunFolderId = location.pathname.split('/')[2];
+    } else if (location.pathname.startsWith('/board/')) {
+      const boardId = location.pathname.split('/')[2];
+      const board = boards.find(b => b.id === boardId);
+      if (board) kunbunFolderId = board.folderId;
+    }
+  }
+  const activeKunbunFolder = folders.find(f => f.id === kunbunFolderId);
+  const activeKunbunBoards = boards.filter(b => b.folderId === kunbunFolderId);
 
   return (
     <>
@@ -190,7 +226,7 @@ const AppSidebar = () => {
           </div>
         ) : isOportunidadesModule ? (
           <div className="flex-1 p-3 mt-6 flex flex-col gap-6">
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1 border-b border-sidebar-border/50 pb-4">
               {!isCollapsed && <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-2 mb-1">Módulo Oportunidades</span>}
 
               <Link to="/oportunidades" className={`flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors ${location.pathname === '/oportunidades' ? 'bg-primary text-primary-foreground font-medium' : 'text-sidebar-foreground hover:bg-sidebar-accent'}`} title="Dashboard Oportunidades">
@@ -199,6 +235,68 @@ const AppSidebar = () => {
 
               <Link to="/oportunidades/busca" className={`flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors ${location.pathname === '/oportunidades/busca' ? 'bg-primary text-primary-foreground font-medium' : 'text-sidebar-foreground hover:bg-sidebar-accent'}`} title="Busca Exata PNCP">
                 <Target className="h-4 w-4 shrink-0" /> {!isCollapsed && <span>Pesquisa no PNCP</span>}
+              </Link>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              {!isCollapsed && <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-2 mb-1">Links Úteis</span>}
+              
+              <a href="https://www.gov.br/compras/pt-br/sistemas/sicaf" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors text-sidebar-foreground hover:bg-sidebar-accent" title="SICAF">
+                <img src="https://www.google.com/s2/favicons?sz=64&domain_url=https://www.gov.br" alt="SICAF" className="h-4 w-4 shrink-0 rounded-sm bg-white" />
+                {!isCollapsed && <span>SICAF</span>}
+              </a>
+
+              <a href="https://www.gov.br/compras/pt-br/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors text-sidebar-foreground hover:bg-sidebar-accent" title="Compras.gov">
+                <img src="https://www.google.com/s2/favicons?sz=64&domain_url=https://www.gov.br" alt="Compras.gov" className="h-4 w-4 shrink-0 rounded-sm bg-white" />
+                {!isCollapsed && <span>Compras.gov</span>}
+              </a>
+
+              <a href="https://pncp.gov.br/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors text-sidebar-foreground hover:bg-sidebar-accent" title="PNCP">
+                <img src="https://www.google.com/s2/favicons?sz=64&domain_url=https://pncp.gov.br" alt="PNCP" className="h-4 w-4 shrink-0 rounded-sm bg-white" />
+                {!isCollapsed && <span>Portal PNCP</span>}
+              </a>
+
+              <a href="https://capag.tesouro.gov.br/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors text-sidebar-foreground hover:bg-sidebar-accent" title="CAPAG">
+                <img src="https://www.google.com/s2/favicons?sz=64&domain_url=https://tesourotransparente.gov.br" alt="CAPAG" className="h-4 w-4 shrink-0 rounded-sm bg-white" />
+                {!isCollapsed && <span>CAPAG</span>}
+              </a>
+            </div>
+          </div>
+        ) : isKunbunModule && activeKunbunFolder ? (
+          <div className="flex-1 p-3 mt-6 flex flex-col gap-6">
+            <div className="flex flex-col gap-1 text-sidebar-foreground/80">
+              {!isCollapsed && (
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-2 truncate">Pasta: {activeKunbunFolder.name}</span>
+                </div>
+              )}
+              
+              <Link to={`/folder/${activeKunbunFolder.id}`} className={`flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors mb-2 ${location.pathname === `/folder/${activeKunbunFolder.id}` ? 'bg-primary text-primary-foreground font-medium border border-primary text-white shadow-sm' : 'bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary border border-primary/20'}`} title="Visão Geral da Pasta">
+                <FolderOpen className="h-4 w-4 shrink-0" /> {!isCollapsed && <span>Visão Geral</span>}
+              </Link>
+
+              {activeKunbunBoards.map(board => (
+                <Link
+                  key={board.id}
+                  to={`/board/${board.id}`}
+                  className={`flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors ${location.pathname === `/board/${board.id}` ? 'bg-sidebar-accent text-sidebar-foreground font-medium border border-border' : 'text-sidebar-foreground hover:bg-sidebar-accent'}`}
+                  title={board.name}
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <div className="w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: board.backgroundColor }}></div>
+                    {!isCollapsed && <span className="truncate">{board.name}</span>}
+                  </div>
+                </Link>
+              ))}
+
+              {activeKunbunBoards.length === 0 && !isCollapsed && (
+                <p className="text-[10px] text-muted-foreground italic px-2 py-4 text-center">Nenhum quadro nesta pasta.</p>
+              )}
+            </div>
+            {/* Voltar para a Home */}
+            <div className="mt-auto border-t border-sidebar-border/50 pt-4">
+              <Link to="/" className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors text-sidebar-foreground hover:bg-sidebar-accent/50`} title="Sair da Pasta">
+                <LayoutGrid className="h-4 w-4 shrink-0" /> {!isCollapsed && <span>Tela Inicial</span>}
               </Link>
             </div>
           </div>
@@ -220,6 +318,37 @@ const AppSidebar = () => {
               )}
             </div>
           </>
+        )}
+
+        {currencyQuotes && (
+          <div className={`mt-auto border-t border-sidebar-border/50 shrink-0 bg-sidebar-accent/10 ${isCollapsed ? 'p-2 py-4 flex flex-col items-center gap-3' : 'p-4'}`}>
+            {!isCollapsed ? (
+              <>
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block mb-2">Cotações (Ao Vivo)</span>
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-1.5 font-medium"><span className="text-emerald-500 font-bold">$</span> Dólar</span>
+                    <span className="font-mono">R$ {currencyQuotes.usd}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-1.5 font-medium"><span className="text-blue-500 font-bold">€</span> Euro</span>
+                    <span className="font-mono">R$ {currencyQuotes.eur}</span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex flex-col items-center gap-1 text-[10px] font-mono font-bold text-emerald-500" title={`Dólar: R$ ${currencyQuotes.usd}`}>
+                  <span>$</span>
+                  <span>{currencyQuotes.usd}</span>
+                </div>
+                <div className="flex flex-col items-center gap-1 text-[10px] font-mono font-bold text-blue-500" title={`Euro: R$ ${currencyQuotes.eur}`}>
+                  <span>€</span>
+                  <span>{currencyQuotes.eur}</span>
+                </div>
+              </>
+            )}
+          </div>
         )}
       </aside>
     </>
