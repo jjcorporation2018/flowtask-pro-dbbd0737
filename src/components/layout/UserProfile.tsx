@@ -48,10 +48,10 @@ export default function UserProfile() {
             return;
         }
 
-        // NOVO: Limite rigoroso de tamanho de arquivo (2MB máximo)
-        const MAX_SIZE_MB = 2;
+        // NOVO: Limite rigoroso de tamanho de arquivo (700KB máximo)
+        const MAX_SIZE_MB = 0.7; // 700KB
         if (file.size > MAX_SIZE_MB * 1024 * 1024) {
-            toast.error(`A imagem é muito grande. O tamanho máximo permitido é de ${MAX_SIZE_MB}MB.`);
+            toast.error(`A imagem é muito grande. O tamanho máximo permitido é de 700KB.`);
             if (fileInputRef.current) fileInputRef.current.value = '';
             return;
         }
