@@ -16,6 +16,7 @@ import authRoutes from './routes/auth';
 import usersRoutes from './routes/users';
 import calendarRoutes from './routes/calendar';
 import kanbanRoutes from './routes/kanban';
+import { initSocket } from './socket';
 
 // Security and Parsing Middlewares
 app.use(helmet({
@@ -66,6 +67,9 @@ app.use('/api/calendar', calendarRoutes);
 app.use('/api/kanban', kanbanRoutes);
 
 // Start Server
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
     console.log(`🚀 Polaryon Backend Kernel running on port ${PORT}`);
 });
+
+// Initialize WebSockets
+initSocket(server);

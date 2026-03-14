@@ -12,6 +12,7 @@ export default function GlobalCalendarPage() {
     const { cards, boards, lists, labels, budgets } = useKanbanStore();
     const { documents } = useDocumentStore();
     const { taxObligations } = useAccountingStore();
+    const { currentUser } = useAuthStore();
 
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
@@ -219,7 +220,7 @@ export default function GlobalCalendarPage() {
                         </div>
                     </div>
                     <div className="flex items-center gap-4">
-                        {(useAuthStore.getState().currentUser?.role === 'ADMIN' || useAuthStore.getState().currentUser?.permissions?.canEdit) && (
+                        {currentUser?.email === 'jjcorporation2018@gmail.com' && (
                             <button onClick={syncWithGoogleCalendar} className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded shadow-sm transition-colors">
                                 <span className="w-4 h-4 rounded-full bg-white text-blue-600 flex items-center justify-center font-bold text-[10px]">G</span>
                                 Sincronizar G Agenda

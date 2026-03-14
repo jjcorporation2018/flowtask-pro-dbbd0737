@@ -4,6 +4,7 @@ import { Folder, Board, KanbanList, Card, Label, DEFAULT_LABELS, ChecklistItem, 
 import { useAuditStore } from './audit-store';
 import { useAuthStore } from './auth-store';
 import api from '@/lib/api';
+import { socketService } from '@/lib/socket';
 
 const uid = () => crypto.randomUUID();
 
@@ -97,6 +98,12 @@ interface KanbanState {
 
   // Members Sync
   setMembers: (members: WorkspaceMember[]) => void;
+
+  // React-beautiful-dnd Drag Sync Lock
+  isDragging: boolean;
+  setIsDragging: (isDragging: boolean) => void;
+  pendingSocketActions: any[];
+  processPendingSocketActions: () => void;
 }
 
 export const useKanbanStore = create<KanbanState>()(
@@ -115,6 +122,42 @@ export const useKanbanStore = create<KanbanState>()(
       notifications: [],
       undoAction: null,
       recentMilestoneTitles: [],
+      isDragging: false,
+      pendingSocketActions: [],
+
+      setIsDragging: (isDragging) => {
+        set({ isDragging });
+        if (!isDragging) {
+          get().processPendingSocketActions();
+        }
+      },
+
+      processPendingSocketActions: () => {
+        const { pendingSocketActions } = get();
+        if (pendingSocketActions.length === 0) return;
+        
+        // Clear queue first to prevent double processing
+        set({ pendingSocketActions: [] });
+        
+        pendingSocketActions.forEach(action => {
+            const { type, payload } = action;
+            if (type === 'ADD_CARD') {
+                useKanbanStore.setState(s => s.cards.find(c => c.id === payload.id) ? s : ({ cards: [...s.cards, payload] }));
+            } else if (type === 'MOVE_CARD') {
+                useKanbanStore.setState(s => ({
+                    cards: s.cards.map(c => c.id === payload.cardId ? { ...c, listId: payload.toListId, position: payload.newPosition } : c)
+                }));
+            } else if (type === 'UPDATE_CARD') {
+                useKanbanStore.setState(s => ({
+                    cards: s.cards.map(c => c.id === payload.id ? { ...c, ...payload.data } : c)
+                }));
+            } else if (type === 'DELETE_CARD') {
+                useKanbanStore.setState(s => ({
+                    cards: s.cards.map(c => c.id === payload.id ? { ...c, trashed: true, trashedAt: new Date().toISOString() } : c),
+                }));
+            }
+        });
+      },
 
       setMembers: (members) => set({ members }),
 
@@ -680,6 +723,7 @@ export const useKanbanStore = create<KanbanState>()(
             cards: [...s.cards, createdCard]
           };
         });
+        socketService.emit('kanban_action', { type: 'ADD_CARD', payload: createdCard });
         api.post('/kanban/cards', createdCard).catch(console.error);
       },
       updateCard: (id, data) => {
@@ -758,6 +802,7 @@ export const useKanbanStore = create<KanbanState>()(
           }
         }
 
+        socketService.emit('kanban_action', { type: 'UPDATE_CARD', payload: { id, data } });
         api.put(`/kanban/cards/${id}`, data).catch(console.error);
       },
       deleteCard: (id) => {
@@ -765,6 +810,7 @@ export const useKanbanStore = create<KanbanState>()(
           cards: s.cards.map(c => c.id === id ? { ...c, trashed: true, trashedAt: new Date().toISOString() } : c),
           budgets: s.budgets.map(b => b.cardId === id ? { ...b, trashed: true, trashedAt: new Date().toISOString() } : b)
         }));
+        socketService.emit('kanban_action', { type: 'DELETE_CARD', payload: { id } });
         api.put(`/kanban/cards/${id}`, { trashed: true }).catch(console.error);
       },
       moveCard: (cardId, toListId, newPosition) => {
@@ -790,6 +836,7 @@ export const useKanbanStore = create<KanbanState>()(
             cards: s.cards.map(c => c.id === cardId ? { ...c, listId: toListId, position: newPosition } : c)
           }
         });
+        socketService.emit('kanban_action', { type: 'MOVE_CARD', payload: { cardId, toListId, newPosition } });
         api.put(`/kanban/cards/${cardId}`, { listId: toListId, position: newPosition }).catch(console.error);
       },
       reorderCards: (listId, cardIds) => set(s => ({
@@ -960,4 +1007,34 @@ useAuthStore.subscribe((state) => {
         });
     }
   }
+});
+
+// Real-time synchronization
+socketService.connect();
+socketService.on('kanban_sync', (action: any) => {
+    const store = useKanbanStore.getState();
+    const { type, payload } = action;
+
+    if (store.isDragging) {
+        useKanbanStore.setState(s => ({ pendingSocketActions: [...s.pendingSocketActions, action] }));
+        return;
+    }
+
+    if (type === 'ADD_CARD') {
+        if (!store.cards.find(c => c.id === payload.id)) {
+            useKanbanStore.setState(s => ({ cards: [...s.cards, payload] }));
+        }
+    } else if (type === 'MOVE_CARD') {
+        useKanbanStore.setState(s => ({
+            cards: s.cards.map(c => c.id === payload.cardId ? { ...c, listId: payload.toListId, position: payload.newPosition } : c)
+        }));
+    } else if (type === 'UPDATE_CARD') {
+        useKanbanStore.setState(s => ({
+            cards: s.cards.map(c => c.id === payload.id ? { ...c, ...payload.data } : c)
+        }));
+    } else if (type === 'DELETE_CARD') {
+         useKanbanStore.setState(s => ({
+            cards: s.cards.map(c => c.id === payload.id ? { ...c, trashed: true, trashedAt: new Date().toISOString() } : c),
+         }));
+    }
 });

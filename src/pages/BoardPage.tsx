@@ -80,7 +80,10 @@ const BoardPage = () => {
     executeUndo();
   };
 
+  const setIsDragging = useKanbanStore(state => state.setIsDragging);
+
   const handleDragEnd = (result: DropResult) => {
+    setIsDragging(false);
     if (currentUser?.role !== 'ADMIN' && !currentUser?.permissions?.canEdit) {
       toast.error('Você não tem permissão para mover cartões/listas.');
       return;
@@ -268,7 +271,7 @@ const BoardPage = () => {
 
       {/* Views */}
       {prefs.viewMode === 'kanban' && (
-        <DragDropContext onDragEnd={handleDragEnd}>
+        <DragDropContext onDragStart={() => setIsDragging(true)} onDragEnd={handleDragEnd}>
           <Droppable droppableId="board" type="LIST" direction="horizontal">
             {(provided) => (
               <div ref={provided.innerRef} {...provided.droppableProps}

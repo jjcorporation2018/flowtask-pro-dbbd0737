@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useKanbanStore } from '@/store/kanban-store';
 import { useUserPrefsStore } from '@/store/user-prefs-store';
 import { useDocumentStore } from '@/store/document-store';
+import { useAuthStore } from '@/store/auth-store';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -60,6 +61,13 @@ const AppContent = () => {
       document.documentElement.classList.remove('dark');
     }
   }, [isDark]);
+
+  useEffect(() => {
+    const authUser = useAuthStore.getState().currentUser;
+    if (authUser) {
+      useUserPrefsStore.getState().loadPreferences(authUser.id);
+    }
+  }, []);
 
   useEffect(() => {
     cleanupTrash(); // Keep the old 15-day cleanup for cards if that's what's intended, or just run the new one

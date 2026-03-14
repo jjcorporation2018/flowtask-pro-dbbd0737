@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/store/auth-store';
+import { useUserPrefsStore } from '@/store/user-prefs-store';
 import { toast } from 'sonner';
 import { LogIn, Lock, RefreshCcw, Mail } from 'lucide-react';
 import { GoogleOAuthProvider, GoogleLogin, useGoogleLogin } from '@react-oauth/google';
@@ -171,6 +172,7 @@ export default function LoginPage() {
 
             // Save to Zustand and Session
             loginWithGoogle(systemUser as any, token);
+            useUserPrefsStore.getState().loadPreferences(systemUser.id);
 
             toast.success("Autenticação Google concluída com sucesso!");
             navigate(from, { replace: true });
