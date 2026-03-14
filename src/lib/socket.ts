@@ -1,6 +1,14 @@
 import { io, Socket } from 'socket.io-client';
 
-const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const getSocketURL = () => {
+    const url = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+    // If it's a relative path starting with /api, we should use the same origin but at root
+    if (url === '/api') return window.location.origin;
+    // Otherwise strip /api if it's an absolute URL
+    return url.replace(/\/api$/, '');
+};
+
+const BACKEND_URL = getSocketURL();
 
 class SocketService {
     private socket: Socket | null = null;
@@ -12,6 +20,7 @@ class SocketService {
                 reconnection: true,
                 reconnectionAttempts: 10,
                 reconnectionDelay: 1000,
+                transports: ['websocket', 'polling'] // Try websocket first
             });
 
             this.socket.on('connect', () => {
