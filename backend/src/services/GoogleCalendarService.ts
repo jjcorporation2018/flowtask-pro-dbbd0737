@@ -68,6 +68,7 @@ export const fetchGoogleEvents = async () => {
     const timeMin = new Date();
     timeMin.setHours(0, 0, 0, 0);
 
+    console.log(`📡 Fetching Google Events since ${timeMin.toISOString()}...`);
     const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${timeMin.toISOString()}&singleEvents=true&orderBy=startTime`, {
         headers: {
             'Authorization': `Bearer ${accessToken}`
@@ -75,12 +76,17 @@ export const fetchGoogleEvents = async () => {
     });
 
     if (!response.ok) {
-        if (response.status === 401) throw new Error("NEEDS_AUTH");
+        if (response.status === 401) {
+            console.error("❌ Google Auth Expired (401)");
+            throw new Error("NEEDS_AUTH");
+        }
         const bodyText = await response.text();
+        console.error(`❌ Google API Error (${response.status}): ${bodyText}`);
         throw new Error(`Google API Error: ${response.status} ${response.statusText} - ${bodyText}`);
     }
 
     const data = await response.json();
+    console.log(`✅ Fetched ${data.items?.length || 0} events from Google.`);
     return data.items || [];
 };
 
@@ -143,6 +149,7 @@ export const pushEventToGoogle = async (
         ? `https://www.googleapis.com/calendar/v3/calendars/primary/events/${existingEventId}`
         : `https://www.googleapis.com/calendar/v3/calendars/primary/events`;
 
+    console.log(`📤 Pushing event to Google (${method}): "${eventToPush.summary}" for cardId: ${cardId}`);
     const response = await fetch(url, {
         method,
         headers: {
@@ -153,7 +160,10 @@ export const pushEventToGoogle = async (
     });
 
     if (!response.ok) {
-        console.error("Failed to push event", await response.text());
+        const errorText = await response.text();
+        console.error("❌ Failed to push event to Google:", errorText);
+    } else {
+        console.log("✅ Event pushed successfully to Google Calendar.");
     }
 };
 
