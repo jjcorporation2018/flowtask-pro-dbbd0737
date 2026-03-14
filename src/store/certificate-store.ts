@@ -42,14 +42,23 @@ export const useCertificateStore = create<CertificateStore>()(
             addCertificate: (cert) => {
                 const id = crypto.randomUUID();
                 const now = new Date().toISOString();
-                set((state) => ({
-                    certificates: [
-                        ...state.certificates,
-                        { ...cert, id, createdAt: now, updatedAt: now },
-                    ],
-                }));
+                set((state) => {
+                    const result = {
+                        certificates: [
+                            ...state.certificates,
+                            { ...cert, id, createdAt: now, updatedAt: now },
+                        ],
+                    };
+                    import('@/lib/socket').then(({ socketService }) => {
+                        socketService.emit('system_action', { store: 'CERTIFICATES', type: 'ADD_CERT', payload: { ...cert, id, createdAt: now, updatedAt: now } });
+                    });
+                    return result;
+                });
             },
             updateCertificate: (id, updatedFields) => {
+                import('@/lib/socket').then(({ socketService }) => {
+                    socketService.emit('system_action', { store: 'CERTIFICATES', type: 'UPDATE_CERT', payload: { id, data: updatedFields } });
+                });
                 set((state) => ({
                     certificates: state.certificates.map((cert) =>
                         cert.id === id ? { ...cert, ...updatedFields, updatedAt: new Date().toISOString() } : cert
@@ -57,6 +66,9 @@ export const useCertificateStore = create<CertificateStore>()(
                 }));
             },
             trashCertificate: (id) => {
+                import('@/lib/socket').then(({ socketService }) => {
+                    socketService.emit('system_action', { store: 'CERTIFICATES', type: 'TRASH_CERT', payload: { id } });
+                });
                 set((state) => ({
                     certificates: state.certificates.map((cert) =>
                         cert.id === id ? { ...cert, trashed: true, trashedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : cert
@@ -90,3 +102,23 @@ export const useCertificateStore = create<CertificateStore>()(
         }
     )
 );
+
+// Listen for remote updates
+import('@/lib/socket').then(({ socketService }) => {
+    socketService.on('system_sync', ({ store, type, payload }: any) => {
+        if (store !== 'CERTIFICATES') return;
+
+        if (type === 'ADD_CERT') {
+            useCertificateStore.setState(s => ({ certificates: [...s.certificates, payload] }));
+        } else if (type === 'UPDATE_CERT') {
+            useCertificateStore.setState(s => ({
+                certificates: s.certificates.map(c => c.id === payload.id ? { ...c, ...payload.data, updatedAt: new Date().toISOString() } : c)
+            }));
+        } else if (type === 'TRASH_CERT') {
+            useCertificateStore.setState(s => ({
+                certificates: s.certificates.map(c => c.id === payload.id ? { ...c, trashed: true, trashedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : c)
+            }));
+        }
+    });
+});
+

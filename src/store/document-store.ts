@@ -91,12 +91,18 @@ export const useDocumentStore = create<DocumentStore>()(
                     });
                 }
 
-                set((state) => ({
-                    documents: [
-                        ...state.documents,
-                        { ...doc, id, createdAt: now, updatedAt: now, status },
-                    ],
-                }));
+                set((state) => {
+                    const result = {
+                        documents: [
+                            ...state.documents,
+                            { ...doc, id, createdAt: now, updatedAt: now, status },
+                        ],
+                    };
+                    import('@/lib/socket').then(({ socketService }) => {
+                        socketService.emit('system_action', { store: 'DOCUMENTS', type: 'ADD_DOC', payload: { ...doc, id, createdAt: now, updatedAt: now, status } });
+                    });
+                    return result;
+                });
             },
             updateDocument: (id, updatedFields) => {
                 const currentUser = useAuthStore.getState().currentUser;
@@ -112,6 +118,10 @@ export const useDocumentStore = create<DocumentStore>()(
                         details: `Atualizou dados do documento "${oldDoc.title}"`
                     });
                 }
+
+                import('@/lib/socket').then(({ socketService }) => {
+                    socketService.emit('system_action', { store: 'DOCUMENTS', type: 'UPDATE_DOC', payload: { id, data: updatedFields } });
+                });
 
                 set((state) => ({
                     documents: state.documents.map((doc) => {
@@ -140,6 +150,10 @@ export const useDocumentStore = create<DocumentStore>()(
                         details: `Moveu o documento "${targetDoc.title}" para a lixeira`
                     });
                 }
+
+                import('@/lib/socket').then(({ socketService }) => {
+                    socketService.emit('system_action', { store: 'DOCUMENTS', type: 'TRASH_DOC', payload: { id } });
+                });
 
                 set((state) => ({
                     documents: state.documents.map((doc) => doc.id === id ? { ...doc, trashed: true, trashedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : doc),
@@ -185,3 +199,23 @@ export const useDocumentStore = create<DocumentStore>()(
         }
     )
 );
+
+// Listen for remote updates
+import('@/lib/socket').then(({ socketService }) => {
+    socketService.on('system_sync', ({ store, type, payload }: any) => {
+        if (store !== 'DOCUMENTS') return;
+        
+        if (type === 'ADD_DOC') {
+            useDocumentStore.setState(s => ({ documents: [...s.documents, payload] }));
+        } else if (type === 'UPDATE_DOC') {
+            useDocumentStore.setState(s => ({
+                documents: s.documents.map(d => d.id === payload.id ? { ...d, ...payload.data, updatedAt: new Date().toISOString() } : d)
+            }));
+        } else if (type === 'TRASH_DOC') {
+            useDocumentStore.setState(s => ({
+                documents: s.documents.map(d => d.id === payload.id ? { ...d, trashed: true, trashedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : d)
+            }));
+        }
+    });
+});
+

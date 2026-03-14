@@ -113,7 +113,7 @@ export const useAccountingStore = create<AccountingState>()(
                     });
                 }
 
-                return {
+                const result = {
                     entries: [
                         ...state.entries,
                         {
@@ -124,6 +124,10 @@ export const useAccountingStore = create<AccountingState>()(
                         }
                     ]
                 };
+                import('@/lib/socket').then(({ socketService }) => {
+                    socketService.emit('system_action', { store: 'ACCOUNTING', type: 'ADD_ENTRY', payload: { ...entry, id: newId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() } });
+                });
+                return result;
             }),
 
             updateEntry: (id, updatedEntry) => set((state) => {
@@ -140,6 +144,10 @@ export const useAccountingStore = create<AccountingState>()(
                     });
                 }
 
+                import('@/lib/socket').then(({ socketService }) => {
+                    socketService.emit('system_action', { store: 'ACCOUNTING', type: 'UPDATE_ENTRY', payload: { id, data: updatedEntry } });
+                });
+
                 return {
                     entries: state.entries.map((entry) => {
                         if (entry.id === id) {
@@ -148,7 +156,6 @@ export const useAccountingStore = create<AccountingState>()(
                                 ...entry,
                                 ...updatedEntry,
                                 updatedAt: new Date().toISOString(),
-                                // If some manual edit sends it to trash or uses the generic update, catch it here just in case.
                                 trashedAt: isTrashing ? new Date().toISOString() : ((updatedEntry as any).trashed === false ? undefined : entry.trashedAt)
                             };
                         }
@@ -170,6 +177,10 @@ export const useAccountingStore = create<AccountingState>()(
                         details: `Deletou o lançamento "${targetEntry.description}"`
                     });
                 }
+
+                import('@/lib/socket').then(({ socketService }) => {
+                    socketService.emit('system_action', { store: 'ACCOUNTING', type: 'DELETE_ENTRY', payload: { id } });
+                });
 
                 // Soft Delete
                 return {
@@ -553,3 +564,23 @@ export const useAccountingStore = create<AccountingState>()(
         }
     )
 );
+
+// Listen for remote updates
+import('@/lib/socket').then(({ socketService }) => {
+    socketService.on('system_sync', ({ store, type, payload }: any) => {
+        if (store !== 'ACCOUNTING') return;
+
+        if (type === 'ADD_ENTRY') {
+            useAccountingStore.setState(s => ({ entries: [...s.entries, payload] }));
+        } else if (type === 'UPDATE_ENTRY') {
+            useAccountingStore.setState(s => ({
+                entries: s.entries.map(e => e.id === payload.id ? { ...e, ...payload.data, updatedAt: new Date().toISOString() } : e)
+            }));
+        } else if (type === 'DELETE_ENTRY') {
+            useAccountingStore.setState(s => ({
+                entries: s.entries.map(e => e.id === payload.id ? { ...e, trashedAt: new Date().toISOString() } : e)
+            }));
+        }
+    });
+});
+

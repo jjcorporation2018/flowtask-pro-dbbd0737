@@ -58,7 +58,7 @@ router.post('/sync', async (req: Request, res: Response) => {
                     description: '*[Gerado automaticamente pelo Polaryon]*\n\nEste é um evento criado pelo sistema de gestão. Não o apague para manter a sincronia.',
                     start: { date: ev.date.split('T')[0] },
                     end: { date: ev.date.split('T')[0] }
-                });
+                }, ev.id); // Passing ev.id to track and update existing events
             }
         }
 

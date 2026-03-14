@@ -19,6 +19,11 @@ export const initSocket = (server: HttpServer) => {
             socket.broadcast.emit('kanban_sync', data);
         });
 
+        socket.on('system_action', (data) => {
+            // Generic broadcast for other stores (Accounting, Docs, etc)
+            socket.broadcast.emit('system_sync', data);
+        });
+
         socket.on('disconnect', () => {
             console.log(`🔌 Client Disconnected: ${socket.id}`);
         });
