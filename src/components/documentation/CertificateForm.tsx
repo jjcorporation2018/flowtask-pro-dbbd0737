@@ -35,7 +35,7 @@ const CertificateForm = ({ onClose, editingCert }: CertificateFormProps) => {
         suppliedQuantity: editingCert?.suppliedQuantity || '',
         kunbunCardId: editingCert?.kunbunCardId || '',
         issuingAgency: editingCert?.issuingAgency || '',
-        executionDate: editingCert?.executionDate || '',
+        executionDate: editingCert?.executionDate?.split('T')[0] || '',
         description: editingCert?.description || '',
     });
 

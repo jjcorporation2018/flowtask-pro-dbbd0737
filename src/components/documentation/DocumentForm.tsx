@@ -29,8 +29,8 @@ const DocumentForm = ({ onClose, editingDoc }: DocumentFormProps) => {
     const [formData, setFormData] = useState({
         title: editingDoc?.title || '',
         type: editingDoc?.type || documentTypes[0],
-        issueDate: editingDoc?.issueDate || '',
-        expirationDate: editingDoc?.expirationDate || '',
+        issueDate: editingDoc?.issueDate?.split('T')[0] || '',
+        expirationDate: editingDoc?.expirationDate?.split('T')[0] || '',
         link: editingDoc?.link || '',
         description: editingDoc?.description || '',
         observations: editingDoc?.observations || '',

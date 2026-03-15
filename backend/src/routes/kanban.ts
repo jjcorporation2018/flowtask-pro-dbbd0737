@@ -572,7 +572,7 @@ router.get('/sync', async (req: Request, res: Response) => {
                 include: { labels: true, checklist: true, comments: true, attachments: true, milestones: true, timeEntries: true }
             }),
             prisma.company.findMany(),
-            prisma.mainCompanyProfile.findMany(),
+            prisma.mainCompanyProfile.findMany({ orderBy: { id: 'asc' } }),
             prisma.route.findMany(),
             prisma.budget.findMany(),
             prisma.notification.findMany(),
