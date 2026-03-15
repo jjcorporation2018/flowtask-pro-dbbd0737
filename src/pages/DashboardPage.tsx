@@ -128,7 +128,7 @@ const Dashboard = () => {
     futureLimit.setHours(23, 59, 59, 999);
 
     const safeDateObject = (dateParam: any) => {
-      if (!dateParam) return new Date();
+      if (!dateParam) return new Date(0); // Return 1970-01-01 if missing
       const str = typeof dateParam === 'string' ? dateParam : new Date(dateParam).toISOString();
       const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
       if (!match) return new Date(dateParam);
@@ -145,28 +145,23 @@ const Dashboard = () => {
           const list = activeLists.find(l => l.id === c.listId);
           const cDate = safeDateObject(c.dueDate);
           const isOverdue = cDate < today;
-          events.push({ 
-            id: c.id, 
-            title: isOverdue ? `[ATRASADA] ${c.title}` : `Tarefa: ${c.title}`, 
-            date: cDate, 
-            type: 'tarefa', 
-            color: isOverdue ? 'text-red-500 font-bold bg-red-500/10 px-1 rounded animate-pulse' : 'text-primary', 
-            icon: isOverdue ? AlertCircle : Clock, 
-            url: list?.boardId ? `/board/${list.boardId}` : '' 
-          });
+          // Only add if date is valid (not 1970)
+          if (cDate.getTime() > 0) {
+            events.push({ 
+              id: c.id, 
+              title: isOverdue ? `[ATRASADA] ${c.title}` : `Tarefa: ${c.title}`, 
+              date: cDate, 
+              type: 'tarefa', 
+              color: isOverdue ? 'text-red-500 font-bold bg-red-500/10 px-1 rounded animate-pulse' : 'text-primary', 
+              icon: isOverdue ? AlertCircle : Clock, 
+              url: list?.boardId ? `/board/${list.boardId}` : '' 
+            });
+          }
         }
       });
     }
 
-    // 2. Budgets
-    if (canBudgets) {
-      budgets.filter(b => !b.trashed && b.status === 'Aguardando').forEach(b => {
-        const date = safeDateObject(b.createdAt);
-        if (date >= today && date <= futureLimit) {
-          events.push({ id: b.id, title: `Proposta Aguardando: ${b.title}`, date, type: 'orcamento', color: 'text-blue-500', icon: Calculator, url: '/budgets' });
-        }
-      });
-    }
+    // 2. Budgets block removed (per user request to only sync/show expiration dates)
 
     // 3. Documents
     if (canDocs) {

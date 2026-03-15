@@ -182,7 +182,7 @@ export default function GlobalCalendarPage() {
     }
 
     const parseSafeDate = (dateParam: any) => {
-        if (!dateParam) return new Date();
+        if (!dateParam) return new Date(0); // Return 1970-01-01 if missing
         if (typeof dateParam === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
             const [y, m, d] = dateParam.split('-').map(Number);
             return new Date(y, m - 1, d);
@@ -192,14 +192,14 @@ export default function GlobalCalendarPage() {
 
     const safeDateObject = (dateParam: any) => {
         const d = parseSafeDate(dateParam);
-        if (isNaN(d.getTime())) return new Date();
+        if (isNaN(d.getTime())) return new Date(0);
         return new Date(d.getFullYear(), d.getMonth(), d.getDate());
     };
 
     const safeDateMatch = (dateParam: any, targetStr: string) => {
         if (!dateParam) return false;
         const d = parseSafeDate(dateParam);
-        if (isNaN(d.getTime())) return false;
+        if (isNaN(d.getTime()) || d.getTime() <= 0) return false;
         return new Date(d.getFullYear(), d.getMonth(), d.getDate()).toDateString() === targetStr;
     };
 
@@ -216,12 +216,16 @@ export default function GlobalCalendarPage() {
         // Check main due date
         if (c.dueDate) {
             const d = safeDateObject(c.dueDate);
-            if (d >= today && d <= nextLimit) return true;
+            if (d.getTime() > 0 && d >= today && d <= nextLimit) return true;
         }
 
         // Check milestones
         if (c.milestones) {
-            return c.milestones.some(m => m.dueDate && safeDateObject(m.dueDate) >= today && safeDateObject(m.dueDate) <= nextLimit && !m.completed);
+            return c.milestones.some(m => {
+                if (!m.dueDate) return false;
+                const d = safeDateObject(m.dueDate);
+                return d.getTime() > 0 && d >= today && d <= nextLimit && !m.completed;
+            });
         }
 
         return false;
@@ -238,19 +242,33 @@ export default function GlobalCalendarPage() {
         // Use the already filtered and sliced upcomingCards
         upcomingCards.forEach(c => {
             if (c.dueDate) {
-                events.push({ id: c.id, title: `Tarefa: ${c.title}`, date: safeDateObject(c.dueDate), type: 'tarefa' });
+                const d = safeDateObject(c.dueDate);
+                if (d.getTime() > 0) {
+                    events.push({ id: c.id, title: `Tarefa: ${c.title}`, date: d, type: 'tarefa' });
+                }
             }
         });
 
-        documents.filter(d => !d.trashed && safeDateObject(d.expirationDate) >= today && safeDateObject(d.expirationDate) <= nextLimit).forEach(d => {
+        documents.filter(d => {
+            if (d.trashed || !d.expirationDate) return false;
+            const dDate = safeDateObject(d.expirationDate);
+            return dDate.getTime() > 0 && dDate >= today && dDate <= nextLimit;
+        }).forEach(d => {
             events.push({ id: d.id, title: `Doc Expirando: ${d.title}`, date: safeDateObject(d.expirationDate), type: 'documento' });
         });
 
-        taxObligations.filter(t => !t.trashedAt && t.status === 'pending' && safeDateObject(t.dueDate) >= today && safeDateObject(t.dueDate) <= nextLimit).forEach(t => {
+        taxObligations.filter(t => {
+            if (t.trashedAt || t.status !== 'pending' || !t.dueDate) return false;
+            const tDate = safeDateObject(t.dueDate);
+            return tDate.getTime() > 0 && tDate >= today && tDate <= nextLimit;
+        }).forEach(t => {
             events.push({ id: t.id, title: `Imposto Pendente: ${t.name}`, date: safeDateObject(t.dueDate), type: 'contabil' });
         });
 
-        googleEvents.filter(g => safeDateObject(g.date) >= today && safeDateObject(g.date) <= nextLimit).forEach(g => {
+        googleEvents.filter(g => {
+            const gDate = safeDateObject(g.date);
+            return gDate.getTime() > 0 && gDate >= today && gDate <= nextLimit;
+        }).forEach(g => {
             if (g.title) {
                 events.push({ id: g.id, title: g.title, date: safeDateObject(g.date), type: 'google' });
             }
