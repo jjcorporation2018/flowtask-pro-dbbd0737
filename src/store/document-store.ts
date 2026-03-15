@@ -64,7 +64,7 @@ const checkStatus = (expirationDate: string): DocumentStatus => {
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
     if (diffDays < 0) return 'expired';
-    if (diffDays <= 30) return 'expiring';
+    if (diffDays <= 10) return 'expiring';
     return 'valid';
 };
 

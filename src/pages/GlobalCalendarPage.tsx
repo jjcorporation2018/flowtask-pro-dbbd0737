@@ -232,7 +232,7 @@ export default function GlobalCalendarPage() {
                         </div>
                     </div>
                     <div className="flex items-center gap-4">
-                        {['jjcorporation2018@gmail.com', 'jefersonvilela72@gmail.com', 'jeferson99jeferson@gmail.com'].includes(currentUser?.email?.toLowerCase() || '') && (
+                        {['jjcorporation2018@gmail.com'].includes(currentUser?.email?.toLowerCase() || '') && (
                             <button 
                                 onClick={syncWithGoogleCalendar} 
                                 className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded shadow-sm transition-colors"

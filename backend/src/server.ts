@@ -18,6 +18,8 @@ import calendarRoutes from './routes/calendar';
 import kanbanRoutes from './routes/kanban';
 import documentsRoutes from './routes/documents';
 import certificatesRoutes from './routes/certificates';
+import accountingRoutes from './routes/accounting';
+import auditRoutes from './routes/audit';
 import { initSocket } from './socket';
 
 // Security and Parsing Middlewares
@@ -69,6 +71,8 @@ app.use('/api/calendar', calendarRoutes);
 app.use('/api/kanban', kanbanRoutes);
 app.use('/api/documents', documentsRoutes);
 app.use('/api/certificates', certificatesRoutes);
+app.use('/api/accounting', accountingRoutes);
+app.use('/api/audit', auditRoutes);
 
 // Start Server
 const server = app.listen(PORT, () => {

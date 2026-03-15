@@ -328,3 +328,148 @@ model CertificateAttachment {
   fileData      String      @db.Text // Base64
   createdAt     DateTime    @default(now())
 }
+
+// ==========================================
+// ACCOUNTING MODELS
+// ==========================================
+
+model AccountingCategory {
+  id        String   @id @default(uuid())
+  name      String
+  type      String   // 'revenue' | 'expense'
+  color     String
+  createdAt DateTime @default(now())
+}
+
+model BankAccount {
+  id        String   @id @default(uuid())
+  companyId String
+  name      String
+  balance   Float
+  color     String?
+  isHidden  Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model AccountingEntry {
+  id               String   @id @default(uuid())
+  companyId        String
+  title            String
+  description      String?  @db.Text
+  amount           Float
+  date             DateTime
+  dueDate          DateTime?
+  type             String   // 'revenue' | 'expense'
+  categoryId       String
+  status           String   // 'pending' | 'paid' | 'overdue'
+  documentNumber   String?
+  documentEntity   String?
+  documentEntityId String?
+  competenceDate   DateTime?
+  paymentMethod    String?
+  bankAccountId    String?
+  notes            String?  @db.Text
+  attachments      Json?
+  linkedTaxId      String?
+  linkedInvoiceId  String?
+  trashed          Boolean  @default(false)
+  trashedAt        DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model RecurringExpense {
+  id                String   @id @default(uuid())
+  companyId         String
+  description       String
+  amount            Float
+  categoryId        String
+  dayOfMonth        Int
+  active            Boolean  @default(true)
+  lastGeneratedDate DateTime?
+  createdAt         DateTime @default(now())
+}
+
+model Invoice {
+  id             String   @id @default(uuid())
+  companyId      String
+  number         String
+  issueDate      DateTime
+  type           String   // 'service' | 'product'
+  clientName     String
+  clientDocument String
+  amount         Float
+  status         String   // 'draft' | 'issued' | 'cancelled'
+  caminho_danfe  String?
+  xmlData        String?  @db.Text
+  xmlUrl         String?
+  pdfUrl         String?
+  trashed        Boolean  @default(false)
+  trashedAt      DateTime?
+  createdAt      DateTime @default(now())
+}
+
+model BankTransaction {
+  id             String   @id @default(uuid())
+  companyId      String
+  date           DateTime
+  description    String
+  amount         Float
+  type           String   // 'credit' | 'debit'
+  status         String   // 'pending' | 'reconciled'
+  matchedEntryId String?
+  createdAt      DateTime @default(now())
+}
+
+model TaxObligation {
+  id          String   @id @default(uuid())
+  companyId   String
+  month       String
+  name        String
+  amount      Float
+  dueDate     DateTime
+  status      String   // 'pending' | 'paid'
+  paymentDate DateTime?
+  trashed     Boolean  @default(false)
+  trashedAt   DateTime?
+  createdAt   DateTime @default(now())
+}
+
+model AccountingSettings {
+  id                String   @id @default(uuid())
+  companyId         String   @unique
+  taxRegime         String
+  taxRatePercentage Float
+  taxRate           Float
+  meiActivityType   String?
+  nfeApiToken       String?
+  nfeEnvironment    String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model AccountantExport {
+  id          String   @id @default(uuid())
+  companyId   String
+  type        String
+  period      String
+  fileName    String
+  fileContent String   @db.Text
+  trashed     Boolean  @default(false)
+  trashedAt   DateTime?
+  createdAt   DateTime @default(now())
+}
+
+// ==========================================
+// AUDIT MODELS
+// ==========================================
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String
+  userName  String
+  action    String
+  entity    String
+  details   String   @db.Text
+  timestamp DateTime @default(now())
+}

@@ -564,7 +564,7 @@ router.get('/sync', async (req: Request, res: Response) => {
             skipDuplicates: true
         }).catch(e => console.error("Label seed skipped", e));
 
-        const [folders, boards, lists, cards, companies, mainCompanies, routes, budgets, notifications, usersDb, labels, companyDocs, essentialDocs, certificates] = await Promise.all([
+        const [folders, boards, lists, cards, companies, mainCompanies, routes, budgets, notifications, usersDb, labels, companyDocs, essentialDocs, certificates, accountingCategories, bankAccounts, accountingEntries, recurringExpenses, invoices, bankTransactions, taxObligations, accountingSettings, accountantExports, auditLogs] = await Promise.all([
             prisma.folder.findMany(),
             prisma.board.findMany(),
             prisma.kanbanList.findMany(),
@@ -592,7 +592,17 @@ router.get('/sync', async (req: Request, res: Response) => {
             prisma.label.findMany(),
             prisma.companyDocument.findMany(),
             prisma.essentialDocument.findMany(),
-            prisma.certificate.findMany({ include: { attachments: true } })
+            prisma.certificate.findMany({ include: { attachments: true } }),
+            prisma.accountingCategory.findMany(),
+            prisma.bankAccount.findMany(),
+            prisma.accountingEntry.findMany(),
+            prisma.recurringExpense.findMany(),
+            prisma.invoice.findMany(),
+            prisma.bankTransaction.findMany(),
+            prisma.taxObligation.findMany(),
+            prisma.accountingSettings.findMany(),
+            prisma.accountantExport.findMany(),
+            prisma.auditLog.findMany({ orderBy: { timestamp: 'desc' }, take: 1000 })
         ]);
 
         const members = usersDb.map((u: any) => ({
@@ -610,7 +620,19 @@ router.get('/sync', async (req: Request, res: Response) => {
         res.json({ 
             folders, boards, lists, cards: formattedCards, companies, 
             mainCompanies, routes, budgets, notifications, members, 
-            labels, companyDocs, essentialDocs, certificates
+            labels, companyDocs, essentialDocs, certificates,
+            accounting: {
+                categories: accountingCategories,
+                bankAccounts,
+                entries: accountingEntries,
+                recurringExpenses,
+                invoices,
+                bankTransactions,
+                taxObligations,
+                settings: accountingSettings.reduce((acc: any, curr: any) => ({ ...acc, [curr.companyId]: curr }), {}),
+                exports: accountantExports
+            },
+            auditLogs
         });
     } catch (e: any) {
         res.status(500).json({ error: e.message });

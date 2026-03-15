@@ -6,6 +6,7 @@ import { useAuthStore } from './auth-store';
 import api from '@/lib/api';
 import { useDocumentStore } from './document-store';
 import { useEssentialDocumentStore } from './essential-document-store';
+import { useAccountingStore } from './accounting-store';
 import { socketService } from '@/lib/socket';
 
 const uid = () => crypto.randomUUID();
@@ -259,6 +260,14 @@ export const useKanbanStore = create<KanbanState>()(
                 // Import do store de certificados feito de forma dinâmica para evitar dependência circular
                 const { useCertificateStore } = await import('./certificate-store');
                 useCertificateStore.getState().setCertificates(res.data.certificates);
+            }
+            if (res.data.accounting) {
+                console.log('kanbanStore - Syncing Accounting data');
+                useAccountingStore.getState().setAllData(res.data.accounting);
+            }
+            if (res.data.auditLogs) {
+                console.log('kanbanStore - Syncing Audit Logs:', res.data.auditLogs.length);
+                useAuditStore.getState().setLogs(res.data.auditLogs);
             }
 
             set({
