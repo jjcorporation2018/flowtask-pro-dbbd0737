@@ -199,7 +199,13 @@ const BoardPage = () => {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   };
 
-  const boardStyle = {
+  const boardStyle = board.backgroundImage ? {
+    backgroundImage: `url(${board.backgroundImage})`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    backgroundRepeat: 'no-repeat',
+    backgroundAttachment: 'fixed'
+  } : {
     background: isDark
       ? `linear-gradient(to bottom right, ${hexToRgba(board.backgroundColor, 0.2)}, rgba(0,0,0,0.9))`
       : `${hexToRgba(board.backgroundColor, 0.15)}`
