@@ -215,20 +215,28 @@ export default function GlobalCalendarPage() {
     // Global Upcoming Events for the Sidebar
     const allUpcomingEvents = (() => {
         const events: any[] = [];
-        upcomingCards.forEach(c => c.dueDate && events.push({ id: c.id, title: `Tarefa: ${c.title}`, date: safeDateObject(c.dueDate), type: 'tarefa' }));
-        // Budgets removed as requested by user
+        
+        // Use the already filtered and sliced upcomingCards
+        upcomingCards.forEach(c => {
+            if (c.dueDate) {
+                events.push({ id: c.id, title: `Tarefa: ${c.title}`, date: safeDateObject(c.dueDate), type: 'tarefa' });
+            }
+        });
 
         documents.filter(d => !d.trashed && safeDateObject(d.expirationDate) >= today && safeDateObject(d.expirationDate) <= nextWeek).forEach(d => {
             events.push({ id: d.id, title: `Doc Expirando: ${d.title}`, date: safeDateObject(d.expirationDate), type: 'documento' });
         });
+
         taxObligations.filter(t => !t.trashedAt && t.status === 'pending' && safeDateObject(t.dueDate) >= today && safeDateObject(t.dueDate) <= nextWeek).forEach(t => {
             events.push({ id: t.id, title: `Imposto Pendente: ${t.name}`, date: safeDateObject(t.dueDate), type: 'contabil' });
         });
+
         googleEvents.filter(g => safeDateObject(g.date) >= today && safeDateObject(g.date) <= nextWeek).forEach(g => {
-            if (g.title && !g.title.startsWith('[Polaryon]')) {
+            if (g.title) {
                 events.push({ id: g.id, title: g.title, date: safeDateObject(g.date), type: 'google' });
             }
         });
+
         return events.sort((a, b) => a.date.getTime() - b.date.getTime()).slice(0, 15);
     })();
 
@@ -243,10 +251,11 @@ export default function GlobalCalendarPage() {
                         </div>
                         <div>
                             <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/60">Calendário Global</h1>
-                            <p className="text-sm text-muted-foreground">Visão geral de todos os prazos</p>
+                            <p className="text-muted-foreground text-sm font-medium">Controle unificado de prazos e eventos</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-4">
+
+                    <div className="flex items-center gap-2">
                         {currentUser?.email?.toLowerCase().startsWith('jjcorporation') && (
                             <button 
                                 onClick={syncWithGoogleCalendar} 
@@ -302,7 +311,7 @@ export default function GlobalCalendarPage() {
                             const dateTaxes = taxObligations.filter(t => !t.trashedAt && t.status === 'pending' && safeDateMatch(t.dueDate, dateStr));
                             const dateHolidays = holidays.filter(h => safeDateMatch(h.date, dateStr));
 
-                            const dateGoogleEvents = googleEvents.filter(g => safeDateMatch(g.date, dateStr) && (!g.title || !g.title.startsWith('[Polaryon]')));
+                            const dateGoogleEvents = googleEvents.filter(g => safeDateMatch(g.date, dateStr));
 
                             const isToday = new Date().toDateString() === dateStr;
 
@@ -376,35 +385,61 @@ export default function GlobalCalendarPage() {
             {/* Upcomings Panel / Sidebar */}
             <div className="w-[320px] border-l border-border bg-card/50 flex flex-col shrink-0">
                 <div className="p-4 border-b border-border bg-card">
-                    <h2 className="font-bold flex items-center gap-2"><Clock className="w-4 h-4 text-primary" /> Próximos Eventos</h2>
-                    <p className="text-xs text-muted-foreground">Próximos 7 dias</p>
+                    <h2 className="font-bold flex items-center gap-2"><Clock className="w-4 h-4 text-primary" /> Painel de Eventos</h2>
                 </div>
-                <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-                    {allUpcomingEvents.length === 0 && (
-                        <p className="text-sm text-muted-foreground text-center py-8">Nenhum evento próximo do sistema.</p>
-                    )}
-                    {allUpcomingEvents.map(event => {
-                        let Icon = Clock;
-                        let colorClass = "text-primary border-primary/20 bg-primary/5";
-                        if (event.type === 'orcamento') { Icon = Calculator; colorClass = "text-blue-500 border-blue-500/20 bg-blue-500/5"; }
-                        if (event.type === 'documento') { Icon = FileText; colorClass = "text-yellow-600 border-yellow-500/20 bg-yellow-500/5"; }
-                        if (event.type === 'contabil') { Icon = PiggyBank; colorClass = "text-red-500 border-red-500/20 bg-red-500/5"; }
-                        if (event.type === 'google') { Icon = CalendarIcon; colorClass = "text-blue-600 border-blue-600/30 bg-blue-600/5"; }
+                
+                <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
+                    {/* Google Sync Info */}
+                    <div className="bg-blue-600/5 p-4 rounded-xl border border-blue-600/20">
+                        <h4 className="flex items-center gap-2 text-sm font-bold text-blue-700 mb-2">
+                            <span className="w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-[10px]">G</span>
+                            Google Agenda
+                        </h4>
+                        <div className="space-y-1">
+                            <p className="text-xs font-semibold text-blue-600/80">
+                                {googleEvents.length > 0 
+                                    ? `✓ ${googleEvents.length} eventos carregados.` 
+                                    : 'Nenhum evento detectado.'}
+                            </p>
+                            <p className="text-[10px] text-blue-500/60 leading-tight">
+                                Sincronizado conforme credenciais do administrador JJ Corporation.
+                            </p>
+                        </div>
+                    </div>
 
-                        return (
-                            <div key={`upcoming-${event.type}-${event.id}`}
-                                onClick={() => event.type === 'tarefa' && setSelectedCardId(event.id)}
-                                className={`p-3 rounded-lg border shadow-sm transition-all hover:shadow-md ${colorClass} ${event.type === 'tarefa' ? 'cursor-pointer hover:border-primary/50' : ''}`}>
-                                <div className="flex items-center gap-2 mb-1">
-                                    <Icon className="w-4 h-4 shrink-0" />
-                                    <p className="font-semibold text-sm line-clamp-2 text-foreground">{event.title}</p>
-                                </div>
-                                <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-                                    <span className="font-medium">{event.date.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}</span>
-                                </div>
-                            </div>
-                        )
-                    })}
+                    <div>
+                        <h4 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-primary" />
+                            Próximos 7 Dias
+                        </h4>
+                        <div className="space-y-3">
+                            {allUpcomingEvents.length === 0 && (
+                                <p className="text-sm text-muted-foreground text-center py-8">Nenhum evento próximo do sistema.</p>
+                            )}
+                            {allUpcomingEvents.map(event => {
+                                let Icon = Clock;
+                                let colorClass = "text-primary border-primary/20 bg-primary/5";
+                                if (event.type === 'orcamento') { Icon = Calculator; colorClass = "text-blue-500 border-blue-500/20 bg-blue-500/5"; }
+                                if (event.type === 'documento') { Icon = FileText; colorClass = "text-yellow-600 border-yellow-500/20 bg-yellow-500/5"; }
+                                if (event.type === 'contabil') { Icon = PiggyBank; colorClass = "text-red-500 border-red-500/20 bg-red-500/5"; }
+                                if (event.type === 'google') { Icon = CalendarIcon; colorClass = "text-blue-600 border-blue-600/30 bg-blue-600/5"; }
+
+                                return (
+                                    <div key={`upcoming-${event.type}-${event.id}`}
+                                        onClick={() => event.type === 'tarefa' && setSelectedCardId(event.id)}
+                                        className={`p-3 rounded-lg border shadow-sm transition-all hover:shadow-md ${colorClass} ${event.type === 'tarefa' ? 'cursor-pointer hover:border-primary/50' : ''}`}>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <Icon className="w-4 h-4 shrink-0" />
+                                            <p className="font-semibold text-sm line-clamp-2 text-foreground">{event.title}</p>
+                                        </div>
+                                        <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
+                                            <span className="font-medium">{event.date.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}</span>
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
                 </div>
             </div>
 
