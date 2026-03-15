@@ -24,6 +24,13 @@ async function main() {
             console.log(`${table}: Error or Not Found`);
         }
     }
+    
+    try {
+        const cards = await prisma.card.findMany({ select: { title: true } });
+        console.log("Card titles:", cards.map(c => c.title).join(', '));
+    } catch (e) {
+        console.log("Error fetching cards");
+    }
 }
 
 main().finally(() => prisma.$disconnect());
