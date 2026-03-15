@@ -4,6 +4,8 @@ import { Folder, Board, KanbanList, Card, Label, DEFAULT_LABELS, ChecklistItem, 
 import { useAuditStore } from './audit-store';
 import { useAuthStore } from './auth-store';
 import api from '@/lib/api';
+import { useDocumentStore } from './document-store';
+import { useEssentialDocumentStore } from './essential-document-store';
 import { socketService } from '@/lib/socket';
 
 const uid = () => crypto.randomUUID();
@@ -100,6 +102,8 @@ interface KanbanState {
   setMembers: (members: WorkspaceMember[]) => void;
 
   // React-beautiful-dnd Drag Sync Lock
+  googleEvents: any[];
+  setGoogleEvents: (events: any[]) => void;
   isDragging: boolean;
   setIsDragging: (isDragging: boolean) => void;
   pendingSocketActions: any[];
@@ -119,11 +123,14 @@ export const useKanbanStore = create<KanbanState>()(
       companies: [],
       routes: [],
       budgets: [],
+      googleEvents: [],
       notifications: [],
       undoAction: null,
       recentMilestoneTitles: [],
       isDragging: false,
       pendingSocketActions: [],
+
+      setGoogleEvents: (googleEvents) => set({ googleEvents }),
 
       setIsDragging: (isDragging) => {
         set({ isDragging });
@@ -172,6 +179,62 @@ export const useKanbanStore = create<KanbanState>()(
                     })
                 }));
             }
+            // NEW SYSTEM SYNC ACTIONS
+            else if (type === 'ADD_COMPANY') {
+                set(s => ({ companies: [...s.companies, payload] }));
+            } else if (type === 'UPDATE_COMPANY') {
+                set(s => ({ companies: s.companies.map(c => c.id === payload.id ? { ...c, ...payload.data } : c) }));
+            } else if (type === 'TRASH_COMPANY') {
+                set(s => ({ companies: s.companies.map(c => c.id === payload.id ? { ...c, trashed: true, trashedAt: new Date().toISOString() } : c) }));
+            } else if (type === 'RESTORE_COMPANY') {
+                set(s => ({ companies: s.companies.map(c => c.id === payload.id ? { ...c, trashed: false, trashedAt: undefined } : c) }));
+            } else if (type === 'DELETE_COMPANY') {
+                set(s => ({ companies: s.companies.filter(c => c.id !== payload.id) }));
+            } else if (type === 'ADD_ROUTE') {
+                set(s => ({ routes: [...s.routes, payload] }));
+            } else if (type === 'UPDATE_ROUTE') {
+                set(s => ({ routes: s.routes.map(r => r.id === payload.id ? { ...r, ...payload.data } : r) }));
+            } else if (type === 'TRASH_ROUTE') {
+                set(s => ({ routes: s.routes.map(r => r.id === payload.id ? { ...r, trashed: true, trashedAt: new Date().toISOString() } : r) }));
+            } else if (type === 'RESTORE_ROUTE') {
+                set(s => ({ routes: s.routes.map(r => r.id === payload.id ? { ...r, trashed: false, trashedAt: undefined } : r) }));
+            } else if (type === 'DELETE_ROUTE') {
+                set(s => ({ routes: s.routes.filter(r => r.id !== payload.id) }));
+            } else if (type === 'ADD_BUDGET') {
+                set(s => ({ budgets: [...s.budgets, payload] }));
+            } else if (type === 'UPDATE_BUDGET') {
+                set(s => ({ budgets: s.budgets.map(b => b.id === payload.id ? { ...b, ...payload.data } : b) }));
+            } else if (type === 'TRASH_BUDGET') {
+                set(s => ({ budgets: s.budgets.map(b => b.id === payload.id ? { ...b, trashed: true, trashedAt: new Date().toISOString() } : b) }));
+            } else if (type === 'RESTORE_BUDGET') {
+                set(s => ({ budgets: s.budgets.map(b => b.id === payload.id ? { ...b, trashed: false, trashedAt: undefined } : b) }));
+            } else if (type === 'DELETE_BUDGET') {
+                set(s => ({ budgets: s.budgets.filter(b => b.id !== payload.id) }));
+            } else if (type === 'ADD_FOLDER') {
+                set(s => ({ folders: [...s.folders, payload] }));
+            } else if (type === 'UPDATE_FOLDER') {
+                set(s => ({ folders: s.folders.map(f => f.id === payload.id ? { ...f, ...payload.data, updatedAt: new Date().toISOString() } : f) }));
+            } else if (type === 'TRASH_FOLDER') {
+                set(s => ({ folders: s.folders.map(f => f.id === payload.id ? { ...f, trashed: true, trashedAt: new Date().toISOString() } : f) }));
+            } else if (type === 'RESTORE_FOLDER') {
+                set(s => ({ folders: s.folders.map(f => f.id === payload.id ? { ...f, trashed: false, trashedAt: undefined } : f) }));
+            } else if (type === 'DELETE_FOLDER') {
+                set(s => ({ folders: s.folders.filter(f => f.id !== payload.id) }));
+            } else if (type === 'ADD_BOARD') {
+                set(s => ({ boards: [...s.boards, payload] }));
+            } else if (type === 'UPDATE_BOARD') {
+                set(s => ({ boards: s.boards.map(b => b.id === payload.id ? { ...b, ...payload.data, updatedAt: new Date().toISOString() } : b) }));
+            } else if (type === 'TRASH_BOARD') {
+                set(s => ({ boards: s.boards.map(b => b.id === payload.id ? { ...b, trashed: true, trashedAt: new Date().toISOString() } : b) }));
+            } else if (type === 'DELETE_BOARD') {
+                set(s => ({ boards: s.boards.filter(b => b.id !== payload.id) }));
+            } else if (type === 'ADD_LIST') {
+                set(s => ({ lists: [...s.lists, payload] }));
+            } else if (type === 'UPDATE_LIST') {
+                set(s => ({ lists: s.lists.map(l => l.id === payload.id ? { ...l, ...payload.data, updatedAt: new Date().toISOString() } : l) }));
+            } else if (type === 'TRASH_LIST') {
+                set(s => ({ lists: s.lists.map(l => l.id === payload.id ? { ...l, trashed: true, trashedAt: new Date().toISOString() } : l) }));
+            }
         });
       },
 
@@ -180,7 +243,18 @@ export const useKanbanStore = create<KanbanState>()(
       fetchKanbanData: async () => {
         try {
           const res = await api.get('/kanban/sync');
+          console.log('kanbanStore - Sync Response:', res.data);
           if (res.data) {
+            // Feed documentation stores
+            if (res.data.companyDocs) {
+                console.log('kanbanStore - Syncing Company Docs:', res.data.companyDocs.length);
+                useDocumentStore.getState().setDocuments(res.data.companyDocs);
+            }
+            if (res.data.essentialDocs) {
+                console.log('kanbanStore - Syncing Essential Docs:', res.data.essentialDocs.length);
+                useEssentialDocumentStore.getState().setModels(res.data.essentialDocs);
+            }
+
             set({
               folders: res.data.folders || [],
               boards: res.data.boards || [],
@@ -327,6 +401,7 @@ export const useKanbanStore = create<KanbanState>()(
           };
         });
         api.post('/kanban/companies', { ...companyData, id, createdAt }).catch(console.error);
+        socketService.emit('system_action', { store: 'KANBAN', type: 'ADD_COMPANY', payload: { ...companyData, id, createdAt } });
       },
       removeCompany: (id) => {
         set(s => ({
@@ -362,34 +437,44 @@ export const useKanbanStore = create<KanbanState>()(
           };
         });
         api.put(`/kanban/companies/${id}`, data).catch(console.error);
+        
+        socketService.emit('system_action', { store: 'KANBAN', type: 'UPDATE_COMPANY', payload: { id, data } });
       },
       deleteCompany: (id) => {
         set(s => ({
           companies: s.companies.map(c => c.id === id ? { ...c, trashed: true, trashedAt: new Date().toISOString() } : c)
         }));
         api.put(`/kanban/companies/${id}`, { trashed: true, trashedAt: new Date().toISOString() }).catch(console.error);
+        
+        socketService.emit('system_action', { store: 'KANBAN', type: 'TRASH_COMPANY', payload: { id } });
       },
       restoreCompany: (id) => {
         set(s => ({
           companies: s.companies.map(c => c.id === id ? { ...c, trashed: false, trashedAt: undefined } : c)
         }));
         api.put(`/kanban/companies/${id}`, { trashed: false, trashedAt: null }).catch(console.error);
+        
+        socketService.emit('system_action', { store: 'KANBAN', type: 'RESTORE_COMPANY', payload: { id } });
       },
       permanentlyDeleteCompany: (id) => {
         set(s => ({
           companies: s.companies.filter(c => c.id !== id)
         }));
         api.delete(`/kanban/companies/${id}`).catch(console.error);
+        
+        socketService.emit('system_action', { store: 'KANBAN', type: 'DELETE_COMPANY', payload: { id } });
       },
 
       // Routes
       addRoute: (routeData) => {
         const id = uid();
         const createdAt = new Date().toISOString();
+        const newRoute = { ...routeData, id, createdAt };
         set(s => ({
-          routes: [...s.routes, { ...routeData, id, createdAt }]
+          routes: [...s.routes, newRoute]
         }));
-        api.post('/kanban/routes', { ...routeData, id, createdAt }).catch(console.error);
+        api.post('/kanban/routes', newRoute).catch(console.error);
+        socketService.emit('system_action', { store: 'KANBAN', type: 'ADD_ROUTE', payload: newRoute });
       },
       updateRoute: (id, data) => {
         set(s => ({
@@ -406,24 +491,28 @@ export const useKanbanStore = create<KanbanState>()(
           })
         }));
         api.put(`/kanban/routes/${id}`, data).catch(console.error);
+        socketService.emit('system_action', { store: 'KANBAN', type: 'UPDATE_ROUTE', payload: { id, data } });
       },
       deleteRoute: (id) => {
         set(s => ({
           routes: s.routes.map(r => r.id === id ? { ...r, trashed: true, trashedAt: new Date().toISOString() } : r)
         }));
         api.put(`/kanban/routes/${id}`, { trashed: true, trashedAt: new Date().toISOString() }).catch(console.error);
+        socketService.emit('system_action', { store: 'KANBAN', type: 'TRASH_ROUTE', payload: { id } });
       },
       restoreRoute: (id) => {
         set(s => ({
-          routes: s.routes.map(r => r.id === id ? { ...r, trashed: false } : r)
+          routes: s.routes.map(r => r.id === id ? { ...r, trashed: false, trashedAt: undefined } : r)
         }));
-        api.put(`/kanban/routes/${id}`, { trashed: false }).catch(console.error);
+        api.put(`/kanban/routes/${id}`, { trashed: false, trashedAt: null }).catch(console.error);
+        socketService.emit('system_action', { store: 'KANBAN', type: 'RESTORE_ROUTE', payload: { id } });
       },
       permanentlyDeleteRoute: (id) => {
         set(s => ({
           routes: s.routes.filter(r => r.id !== id)
         }));
         api.delete(`/kanban/routes/${id}`).catch(console.error);
+        socketService.emit('system_action', { store: 'KANBAN', type: 'DELETE_ROUTE', payload: { id } });
       },
 
       // Budgets
@@ -448,7 +537,10 @@ export const useKanbanStore = create<KanbanState>()(
           };
         });
 
-        api.post('/kanban/budgets', { ...budgetData, userId: currentUser?.id, id, createdAt }).catch(console.error);
+        api.post('/kanban/budgets', { ...budgetData, userId: currentUser?.id, id, createdAt }).then(res => {
+            const newBudget = { ...budgetData, userId: currentUser?.id, id, createdAt };
+            socketService.emit('system_action', { store: 'KANBAN', type: 'ADD_BUDGET', payload: newBudget });
+        }).catch(console.error);
         
         return id;
       },
@@ -479,18 +571,47 @@ export const useKanbanStore = create<KanbanState>()(
           };
         });
         api.put(`/kanban/budgets/${id}`, data).catch(console.error);
+        socketService.emit('system_action', { store: 'KANBAN', type: 'UPDATE_BUDGET', payload: { id, data } });
       },
       deleteBudget: (id) => {
-        set(s => ({
-          budgets: s.budgets.map(b => b.id === id ? { ...b, trashed: true, trashedAt: new Date().toISOString() } : b)
-        }));
+        set(s => {
+          const currentUser = useAuthStore.getState().currentUser;
+          const target = s.budgets.find(b => b.id === id);
+          if (currentUser && target) {
+            useAuditStore.getState().addLog({
+              userId: currentUser.id,
+              userName: currentUser.name,
+              action: 'EXCLUIR',
+              entity: 'ORÇAMENTO',
+              details: `Moveu o orçamento "${target.title}" para a Lixeira`
+            });
+          }
+          return {
+            budgets: s.budgets.map(b => b.id === id ? { ...b, trashed: true, trashedAt: new Date().toISOString() } : b)
+          };
+        });
         api.put(`/kanban/budgets/${id}`, { trashed: true, trashedAt: new Date().toISOString() }).catch(console.error);
+        socketService.emit('system_action', { store: 'KANBAN', type: 'TRASH_BUDGET', payload: { id } });
       },
       restoreBudget: (id) => {
-        set(s => ({
-          budgets: s.budgets.map(b => b.id === id ? { ...b, trashed: false } : b)
-        }));
+        set(s => {
+          const currentUser = useAuthStore.getState().currentUser;
+          const target = s.budgets.find(b => b.id === id);
+          if (currentUser && target) {
+            useAuditStore.getState().addLog({
+              userId: currentUser.id,
+              userName: currentUser.name,
+              action: 'EDITAR',
+              entity: 'ORÇAMENTO',
+              details: `Restaurou o orçamento "${target.title}" da Lixeira`
+            });
+          }
+          return {
+            budgets: s.budgets.map(b => b.id === id ? { ...b, trashed: false, trashedAt: undefined } : b)
+          };
+        });
         api.put(`/kanban/budgets/${id}`, { trashed: false, trashedAt: null }).catch(console.error);
+        socketService.emit('system_action', { store: 'KANBAN', type: 'RESTORE_BUDGET', payload: { id } });
       },
       permanentlyDeleteBudget: (id) => {
         set(s => {
@@ -510,29 +631,60 @@ export const useKanbanStore = create<KanbanState>()(
           };
         });
         api.delete(`/kanban/budgets/${id}`).catch(console.error);
+        socketService.emit('system_action', { store: 'KANBAN', type: 'DELETE_BUDGET', payload: { id } });
       },
 
       // Folders
-      addFolder: (name, color = '#026AA7', sideImage) => {
-        const newFolder = { id: uid(), name, color, icon: '📁', sideImage, createdAt: new Date().toISOString() };
-        set(s => ({ folders: [...s.folders, newFolder] }));
+      addFolder: (name, color = '#3b82f6', sideImage) => {
+        const id = uid();
+        const now = new Date().toISOString();
+        const newFolder = { id, name, color, icon: '📁', sideImage, createdAt: now, updatedAt: now };
+        set(s => {
+          const currentUser = useAuthStore.getState().currentUser;
+          if (currentUser) {
+            useAuditStore.getState().addLog({
+              userId: currentUser.id,
+              userName: currentUser.name,
+              action: 'CRIAR',
+              entity: 'QUADRO/LISTA',
+              details: `Criou a pasta "${name}"`
+            });
+          }
+          return { folders: [...s.folders, newFolder] };
+        });
         api.post('/kanban/folders', newFolder).catch(console.error);
+        socketService.emit('system_action', { store: 'KANBAN', type: 'ADD_FOLDER', payload: newFolder });
       },
       updateFolder: (id, data) => {
-        set(s => ({
-          folders: s.folders.map(f => {
-            if (f.id === id) {
-              const isTrashing = data.trashed === true && !f.trashed;
-              return {
-                ...f,
-                ...data,
-                trashedAt: isTrashing ? new Date().toISOString() : (data.trashed === false ? undefined : f.trashedAt)
+        set(s => {
+          const currentUser = useAuthStore.getState().currentUser;
+          const target = s.folders.find(f => f.id === id);
+          if (currentUser && target) {
+            useAuditStore.getState().addLog({
+              userId: currentUser.id,
+              userName: currentUser.name,
+              action: 'EDITAR',
+              entity: 'QUADRO/LISTA',
+              details: `Atualizou a pasta "${target.name}"`
+            });
+          }
+          return {
+            folders: s.folders.map(f => {
+              if (f.id === id) {
+                const isTrashing = data.trashed === true && !f.trashed;
+                return {
+                  ...f,
+                  ...data,
+                  trashedAt: isTrashing ? new Date().toISOString() : (data.trashed === false ? undefined : f.trashedAt),
+                  updatedAt: new Date().toISOString()
+                }
               }
-            }
-            return f;
-          })
-        }));
-        api.put(`/kanban/folders/${id}`, data).catch(console.error);
+              return f;
+            })
+          };
+        });
+        api.put(`/kanban/folders/${id}`, { ...data, updatedAt: new Date().toISOString() }).catch(console.error);
+        socketService.emit('system_action', { store: 'KANBAN', type: 'UPDATE_FOLDER', payload: { id, data } });
       },
       deleteFolder: (id) => {
         set(s => {
@@ -557,7 +709,34 @@ export const useKanbanStore = create<KanbanState>()(
             cards: s.cards.map(c => listIds.includes(c.listId) ? { ...c, trashed: true, trashedAt: new Date().toISOString() } : c),
           };
         });
-        api.put(`/kanban/folders/${id}`, { trashed: true }).catch(console.error);
+        api.put(`/kanban/folders/${id}`, { trashed: true, trashedAt: new Date().toISOString() }).catch(console.error);
+        socketService.emit('system_action', { store: 'KANBAN', type: 'TRASH_FOLDER', payload: { id } });
+      },
+      restoreFolder: (id) => {
+        set(s => {
+          const currentUser = useAuthStore.getState().currentUser;
+          const target = s.folders.find(f => f.id === id);
+          if (currentUser && target) {
+            useAuditStore.getState().addLog({
+              userId: currentUser.id,
+              userName: currentUser.name,
+              action: 'EDITAR',
+              entity: 'QUADRO/LISTA',
+              details: `Restaurou a pasta "${target.name}" da Lixeira`
+            });
+          }
+
+          const boardIds = s.boards.filter(b => b.folderId === id).map(b => b.id);
+          const listIds = s.lists.filter(l => boardIds.includes(l.boardId)).map(l => l.id);
+          return {
+            folders: s.folders.map(f => f.id === id ? { ...f, trashed: false, trashedAt: undefined } : f),
+            boards: s.boards.map(b => boardIds.includes(b.id) ? { ...b, trashed: false, trashedAt: undefined } : b),
+            lists: s.lists.map(l => listIds.includes(l.id) ? { ...l, trashed: false, trashedAt: undefined } : l),
+            cards: s.cards.map(c => listIds.includes(c.listId) ? { ...c, trashed: false, trashedAt: undefined } : c),
+          };
+        });
+        api.put(`/kanban/folders/${id}`, { trashed: false, trashedAt: null }).catch(console.error);
+        socketService.emit('system_action', { store: 'KANBAN', type: 'RESTORE_FOLDER', payload: { id } });
       },
       permanentlyDeleteFolder: (id) => {
         set(s => {
@@ -569,43 +748,49 @@ export const useKanbanStore = create<KanbanState>()(
               userName: currentUser.name,
               action: 'EXCLUIR',
               entity: 'QUADRO/LISTA',
-              details: `Excluiu permanentemente a pasta "${target.name}"`
+              details: `Removeu permanentemente a pasta "${target.name}" e seus quadros`
             });
           }
-
           const boardIds = s.boards.filter(b => b.folderId === id).map(b => b.id);
           const listIds = s.lists.filter(l => boardIds.includes(l.boardId)).map(l => l.id);
           return {
             folders: s.folders.filter(f => f.id !== id),
-            boards: s.boards.filter(b => !boardIds.includes(b.id)),
-            lists: s.lists.filter(l => !listIds.includes(l.id)),
+            boards: s.boards.filter(b => b.folderId !== id),
+            lists: s.lists.filter(l => !boardIds.includes(l.boardId)),
             cards: s.cards.filter(c => !listIds.includes(c.listId)),
           };
         });
         api.delete(`/kanban/folders/${id}`).catch(console.error);
+        socketService.emit('system_action', { store: 'KANBAN', type: 'DELETE_FOLDER', payload: { id } });
       },
 
       // Boards
-      addBoard: (folderId, name, color = '#026AA7') => {
-        const newBoard = { id: uid(), folderId, name, backgroundColor: color, createdAt: new Date().toISOString() };
-        set(s => ({ boards: [...s.boards, newBoard] }));
-        api.post('/kanban/boards', newBoard).catch(console.error);
+      addBoard: (folderId, name, color = '#3182ce') => {
+          const id = uid();
+          const now = new Date().toISOString();
+          const newBoard = { id, folderId, name, backgroundColor: color, createdAt: now, updatedAt: now };
+          set(s => {
+            const currentUser = useAuthStore.getState().currentUser;
+            if (currentUser) {
+                useAuditStore.getState().addLog({
+                    userId: currentUser.id,
+                    userName: currentUser.name,
+                    action: 'CRIAR',
+                    entity: 'QUADRO/LISTA',
+                    details: `Criou o quadro "${name}"`
+                });
+            }
+            return { boards: [...s.boards, newBoard] };
+          });
+          api.post('/kanban/boards', newBoard).catch(console.error);
+          socketService.emit('system_action', { store: 'KANBAN', type: 'ADD_BOARD', payload: newBoard });
       },
       updateBoard: (id, data) => {
         set(s => ({
-          boards: s.boards.map(b => {
-            if (b.id === id) {
-              const isTrashing = data.trashed === true && !b.trashed;
-              return {
-                ...b,
-                ...data,
-                trashedAt: isTrashing ? new Date().toISOString() : (data.trashed === false ? undefined : b.trashedAt)
-              }
-            }
-            return b;
-          })
+          boards: s.boards.map(b => b.id === id ? { ...b, ...data, updatedAt: new Date().toISOString() } : b)
         }));
-        api.put(`/kanban/boards/${id}`, data).catch(console.error);
+        api.put(`/kanban/boards/${id}`, { ...data, updatedAt: new Date().toISOString() }).catch(console.error);
+        socketService.emit('system_action', { store: 'KANBAN', type: 'UPDATE_BOARD', payload: { id, data } });
       },
       deleteBoard: (id) => {
         set(s => {
@@ -617,18 +802,15 @@ export const useKanbanStore = create<KanbanState>()(
               userName: currentUser.name,
               action: 'EXCLUIR',
               entity: 'QUADRO/LISTA',
-              details: `Moveu para a lixeira o quadro "${target.name}"`
+              details: `Moveu o quadro "${target.name}" para a Lixeira`
             });
           }
-
-          const listIds = s.lists.filter(l => l.boardId === id).map(l => l.id);
           return {
-            boards: s.boards.map(b => b.id === id ? { ...b, trashed: true, trashedAt: new Date().toISOString() } : b),
-            lists: s.lists.map(l => l.boardId === id ? { ...l, trashed: true, trashedAt: new Date().toISOString() } : l),
-            cards: s.cards.map(c => listIds.includes(c.listId) ? { ...c, trashed: true, trashedAt: new Date().toISOString() } : c),
+            boards: s.boards.map(b => b.id === id ? { ...b, trashed: true, trashedAt: new Date().toISOString() } : b)
           };
         });
-        api.put(`/kanban/boards/${id}`, { trashed: true }).catch(console.error);
+        api.put(`/kanban/boards/${id}`, { trashed: true, trashedAt: new Date().toISOString() }).catch(console.error);
+        socketService.emit('system_action', { store: 'KANBAN', type: 'TRASH_BOARD', payload: { id } });
       },
       permanentlyDeleteBoard: (id) => {
         set(s => {
@@ -640,67 +822,45 @@ export const useKanbanStore = create<KanbanState>()(
               userName: currentUser.name,
               action: 'EXCLUIR',
               entity: 'QUADRO/LISTA',
-              details: `Excluiu permanentemente o quadro "${target.name}"`
+              details: `Removeu permanentemente o quadro "${target.name}"`
             });
           }
-
           const listIds = s.lists.filter(l => l.boardId === id).map(l => l.id);
           return {
             boards: s.boards.filter(b => b.id !== id),
             lists: s.lists.filter(l => l.boardId !== id),
-            cards: s.cards.filter(c => !listIds.includes(c.listId)),
+            cards: s.cards.filter(c => !listIds.includes(c.listId))
           };
         });
         api.delete(`/kanban/boards/${id}`).catch(console.error);
+        socketService.emit('system_action', { store: 'KANBAN', type: 'DELETE_BOARD', payload: { id } });
       },
 
       // Lists
       addList: (boardId, title) => {
-        const newListId = uid();
-        let createdList: any;
-        set(s => {
-          const maxPos = Math.max(0, ...s.lists.filter(l => l.boardId === boardId).map(l => l.position));
-          createdList = { id: newListId, boardId, title, position: maxPos + 1 };
-          return { lists: [...s.lists, createdList] };
-        });
-        api.post('/kanban/lists', createdList).catch(console.error);
+        const id = uid();
+        const now = new Date().toISOString();
+        const lastList = get().lists.filter(l => l.boardId === boardId).sort((a, b) => (b.position || 0) - (a.position || 0))[0];
+        const position = lastList ? (lastList.position || 0) + 1 : 0;
+        const newList = { id, boardId, title, position, createdAt: now, updatedAt: now };
+        set(s => ({ lists: [...s.lists, newList] }));
+        api.post('/kanban/lists', newList).catch(console.error);
+        socketService.emit('system_action', { store: 'KANBAN', type: 'ADD_LIST', payload: newList });
       },
       updateList: (id, data) => {
         set(s => ({
-          lists: s.lists.map(l => {
-            if (l.id === id) {
-              const isTrashing = data.trashed === true && !l.trashed;
-              return {
-                ...l,
-                ...data,
-                trashedAt: isTrashing ? new Date().toISOString() : (data.trashed === false ? undefined : l.trashedAt)
-              }
-            }
-            return l;
-          })
+          lists: s.lists.map(l => l.id === id ? { ...l, ...data, updatedAt: new Date().toISOString() } : l)
         }));
-        api.put(`/kanban/lists/${id}`, data).catch(console.error);
+        api.put(`/kanban/lists/${id}`, { ...data, updatedAt: new Date().toISOString() }).catch(console.error);
+        socketService.emit('system_action', { store: 'KANBAN', type: 'UPDATE_LIST', payload: { id, data } });
       },
       deleteList: (id) => {
-        set(s => {
-          const currentUser = useAuthStore.getState().currentUser;
-          const target = s.lists.find(l => l.id === id);
-          if (currentUser && target) {
-            useAuditStore.getState().addLog({
-              userId: currentUser.id,
-              userName: currentUser.name,
-              action: 'EXCLUIR',
-              entity: 'QUADRO/LISTA',
-              details: `Excluiu permanentemente a lista "${target.title}"`
-            });
-          }
-
-          return {
-            lists: s.lists.map(l => l.id === id ? { ...l, trashed: true, trashedAt: new Date().toISOString() } : l),
-            cards: s.cards.map(c => c.listId === id ? { ...c, trashed: true, trashedAt: new Date().toISOString() } : c),
-          };
-        });
-        api.put(`/kanban/lists/${id}`, { trashed: true }).catch(console.error);
+        set(s => ({
+          lists: s.lists.map(l => l.id === id ? { ...l, trashed: true, trashedAt: new Date().toISOString() } : l),
+          cards: s.cards.map(c => c.listId === id ? { ...c, trashed: true, trashedAt: new Date().toISOString() } : c),
+        }));
+        api.put(`/kanban/lists/${id}`, { trashed: true, trashedAt: new Date().toISOString() }).catch(console.error);
+        socketService.emit('system_action', { store: 'KANBAN', type: 'TRASH_LIST', payload: { id } });
       },
       reorderLists: (boardId, listIds) => {
         set(s => ({
@@ -710,7 +870,7 @@ export const useKanbanStore = create<KanbanState>()(
             return idx >= 0 ? { ...l, position: idx } : l;
           })
         }));
-        socketService.emit('kanban_action', { type: 'REORDER_LISTS', payload: { boardId, listIds } });
+        socketService.emit('system_action', { store: 'KANBAN', type: 'REORDER_LISTS', payload: { boardId, listIds } });
       },
 
       // Cards
@@ -742,7 +902,7 @@ export const useKanbanStore = create<KanbanState>()(
             cards: [...s.cards, createdCard]
           };
         });
-        socketService.emit('kanban_action', { type: 'ADD_CARD', payload: createdCard });
+        socketService.emit('system_action', { store: 'KANBAN', type: 'ADD_CARD', payload: createdCard });
         api.post('/kanban/cards', createdCard).catch(console.error);
       },
       updateCard: (id, data) => {
@@ -820,8 +980,8 @@ export const useKanbanStore = create<KanbanState>()(
             }, 1000); // Slight delay to ensure state is committed
           }
         }
-
-        socketService.emit('kanban_action', { type: 'UPDATE_CARD', payload: { id, data } });
+        
+        socketService.emit('system_action', { store: 'KANBAN', type: 'UPDATE_CARD', payload: { id, data } });
         api.put(`/kanban/cards/${id}`, data).catch(console.error);
       },
       deleteCard: (id) => {
@@ -829,7 +989,7 @@ export const useKanbanStore = create<KanbanState>()(
           cards: s.cards.map(c => c.id === id ? { ...c, trashed: true, trashedAt: new Date().toISOString() } : c),
           budgets: s.budgets.map(b => b.cardId === id ? { ...b, trashed: true, trashedAt: new Date().toISOString() } : b)
         }));
-        socketService.emit('kanban_action', { type: 'DELETE_CARD', payload: { id } });
+        socketService.emit('system_action', { store: 'KANBAN', type: 'DELETE_CARD', payload: { id } });
         api.put(`/kanban/cards/${id}`, { trashed: true }).catch(console.error);
       },
       moveCard: (cardId, toListId, newPosition) => {
@@ -855,7 +1015,7 @@ export const useKanbanStore = create<KanbanState>()(
             cards: s.cards.map(c => c.id === cardId ? { ...c, listId: toListId, position: newPosition } : c)
           }
         });
-        socketService.emit('kanban_action', { type: 'MOVE_CARD', payload: { cardId, toListId, newPosition } });
+        socketService.emit('system_action', { store: 'KANBAN', type: 'MOVE_CARD', payload: { cardId, toListId, newPosition } });
         api.put(`/kanban/cards/${cardId}`, { listId: toListId, position: newPosition }).catch(console.error);
       },
       reorderCards: (listId, cardIds) => {
@@ -866,7 +1026,8 @@ export const useKanbanStore = create<KanbanState>()(
             return idx >= 0 ? { ...c, position: idx } : c;
           })
         }));
-        socketService.emit('kanban_action', { type: 'REORDER_CARDS', payload: { listId, cardIds } });
+        socketService.emit('system_action', { store: 'KANBAN', type: 'REORDER_CARDS', payload: { listId, cardIds } });
+        api.post('/kanban/cards/reorder', { listId, cardIds }).catch(console.error);
       },
       cleanupTrash: () => set(s => {
         const threshold = new Date();
@@ -984,16 +1145,25 @@ export const useKanbanStore = create<KanbanState>()(
     }),
     { 
       name: 'jj-kanban-v2', // bumped version to wipe corrupted localstorage with large images
+      /**
+       * PROTECTED SECTION: Critical for performance and persistence.
+       * Do not remove lists, companies, routes, or budgets from partialize.
+       * This prevents the "blank board" effect on page refresh.
+       */
       partialize: (state) => ({
-        ...state,
+        googleEvents: state.googleEvents,
         folders: state.folders.map(f => ({ ...f, sideImage: undefined })),
         boards: state.boards.map(b => ({ ...b, backgroundImage: undefined })),
+        lists: state.lists,
+        companies: state.companies,
+        routes: state.routes,
+        budgets: state.budgets,
         cards: state.cards.map(c => ({ 
           ...c, 
-          attachments: [], // Strip heavy base64 media
-          comments: [] // Strip comments to save space
+          attachments: [], 
+          comments: [] 
         })),
-        members: [] // Drop members from local storage to prevent QuotaExceededError and ensure fresh sync
+        members: [] 
       })
     }
   )
@@ -1033,46 +1203,63 @@ useAuthStore.subscribe((state) => {
 
 // Real-time synchronization
 socketService.connect();
-socketService.on('kanban_sync', (action: any) => {
+
+// Unified System Sync for all events
+socketService.on('system_sync', (action: any) => {
     const store = useKanbanStore.getState();
     const { type, payload } = action;
 
-    if (store.isDragging) {
-        useKanbanStore.setState(s => ({ pendingSocketActions: [...s.pendingSocketActions, action] }));
-        return;
-    }
-
-    if (type === 'ADD_CARD') {
-        if (!store.cards.find(c => c.id === payload.id)) {
-            useKanbanStore.setState(s => ({ cards: [...s.cards, payload] }));
+    if (action.store === 'KANBAN') {
+        if (store.isDragging) {
+            useKanbanStore.setState(s => ({ pendingSocketActions: [...s.pendingSocketActions, action] }));
+            return;
         }
-    } else if (type === 'MOVE_CARD') {
-        useKanbanStore.setState(s => ({
-            cards: s.cards.map(c => c.id === payload.cardId ? { ...c, listId: payload.toListId, position: payload.newPosition } : c)
-        }));
-    } else if (type === 'UPDATE_CARD') {
-        useKanbanStore.setState(s => ({
-            cards: s.cards.map(c => c.id === payload.id ? { ...c, ...payload.data } : c)
-        }));
-    } else if (type === 'DELETE_CARD') {
-         useKanbanStore.setState(s => ({
-            cards: s.cards.map(c => c.id === payload.id ? { ...c, trashed: true, trashedAt: new Date().toISOString() } : c),
-         }));
-    } else if (type === 'REORDER_CARDS') {
-        useKanbanStore.setState(s => ({
-            cards: s.cards.map(c => {
-                if (c.listId !== payload.listId) return c;
-                const idx = payload.cardIds.indexOf(c.id);
-                return idx >= 0 ? { ...c, position: idx } : c;
-            })
-        }));
-    } else if (type === 'REORDER_LISTS') {
-        useKanbanStore.setState(s => ({
-            lists: s.lists.map(l => {
-                if (l.boardId !== payload.boardId) return l;
-                const idx = payload.listIds.indexOf(l.id);
-                return idx >= 0 ? { ...l, position: idx } : l;
-            })
-        }));
+
+        // Direct processing
+        if (type === 'ADD_CARD') {
+            if (!store.cards.find(c => c.id === payload.id)) {
+                useKanbanStore.setState(s => ({ cards: [...s.cards, payload] }));
+            }
+        } else if (type === 'MOVE_CARD') {
+            useKanbanStore.setState(s => ({
+                cards: s.cards.map(c => c.id === payload.cardId ? { ...c, listId: payload.toListId, position: payload.newPosition } : c)
+            }));
+        } else if (type === 'UPDATE_CARD') {
+            useKanbanStore.setState(s => ({
+                cards: s.cards.map(c => c.id === payload.id ? { ...c, ...payload.data } : c)
+            }));
+        } else if (type === 'DELETE_CARD') {
+             useKanbanStore.setState(s => ({
+                cards: s.cards.map(c => c.id === payload.id ? { ...c, trashed: true, trashedAt: new Date().toISOString() } : c),
+             }));
+        } else if (type === 'REORDER_CARDS') {
+            useKanbanStore.setState(s => ({
+                cards: s.cards.map(c => {
+                    if (c.listId !== payload.listId) return c;
+                    const idx = payload.cardIds.indexOf(c.id);
+                    return idx >= 0 ? { ...c, position: idx } : c;
+                })
+            }));
+        } else if (type === 'REORDER_LISTS') {
+            useKanbanStore.setState(s => ({
+                lists: s.lists.map(l => {
+                    if (l.boardId !== payload.boardId) return l;
+                    const idx = payload.listIds.indexOf(l.id);
+                    return idx >= 0 ? { ...l, position: idx } : l;
+                })
+            }));
+        } else {
+            // Process non-card system actions (Budgets, Folders, etc)
+            const tempQueue = [action];
+            const originalQueue = store.pendingSocketActions;
+            useKanbanStore.setState({ pendingSocketActions: tempQueue });
+            store.processPendingSocketActions();
+            useKanbanStore.setState({ pendingSocketActions: originalQueue });
+        }
+    } else if (action.store === 'GOOGLE_CALENDAR') {
+        // Shared Google Events state update
+        if (action.type === 'SYNC_COMPLETE') {
+            useKanbanStore.getState().setGoogleEvents(action.payload);
+        }
     }
 });

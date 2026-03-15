@@ -16,6 +16,7 @@ import authRoutes from './routes/auth';
 import usersRoutes from './routes/users';
 import calendarRoutes from './routes/calendar';
 import kanbanRoutes from './routes/kanban';
+import documentsRoutes from './routes/documents';
 import { initSocket } from './socket';
 
 // Security and Parsing Middlewares
@@ -65,6 +66,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/kanban', kanbanRoutes);
+app.use('/api/documents', documentsRoutes);
 
 // Start Server
 const server = app.listen(PORT, () => {

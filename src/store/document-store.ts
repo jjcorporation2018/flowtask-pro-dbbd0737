@@ -1,7 +1,10 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { socketService } from '@/lib/socket';
 import { useAuditStore } from './audit-store';
 import { useAuthStore } from './auth-store';
+import { fixDateToBRT } from '@/lib/utils';
+import api from '@/lib/api';
 
 export type DocumentStatus = 'valid' | 'expiring' | 'expired';
 
@@ -18,47 +21,40 @@ export interface CompanyDocument {
     type: string;
     issueDate?: string;
     expirationDate: string;
-
-    // New fields
     link?: string;
     description?: string;
     observations?: string;
     whereToIssue?: string;
-
-    // Attachments
     attachments?: DocumentAttachment[];
-
-    // Deprecated single file fields (keeping for backward compatibility or migration)
     fileData?: string;
     fileName?: string;
     fileSize?: number;
-    companyId?: string; // Optional: If we want to link it to a specific supplier/transporter
+    companyId?: string;
     createdAt: string;
     updatedAt: string;
     status: DocumentStatus;
-    lastNotifiedIndex?: number; // internal: helps to not spam the same notification
+    lastNotifiedIndex?: number;
     trashed?: boolean;
     trashedAt?: string;
 }
 
 interface DocumentStore {
     documents: CompanyDocument[];
-    addDocument: (doc: Omit<CompanyDocument, 'id' | 'createdAt' | 'updatedAt' | 'status'>) => void;
-    updateDocument: (id: string, doc: Partial<CompanyDocument>) => void;
-    trashDocument: (id: string) => void;
-    restoreDocument: (id: string) => void;
-    permanentlyDeleteDocument: (id: string) => void;
+    setDocuments: (docs: CompanyDocument[]) => void;
+    addDocument: (doc: Omit<CompanyDocument, 'id' | 'createdAt' | 'updatedAt' | 'status'>) => Promise<void>;
+    updateDocument: (id: string, doc: Partial<CompanyDocument>) => Promise<void>;
+    trashDocument: (id: string) => Promise<void>;
+    restoreDocument: (id: string) => Promise<void>;
+    permanentlyDeleteDocument: (id: string) => Promise<void>;
     validateDocumentStatuses: () => void;
     cleanOldTrash: () => void;
+    processSystemAction: (action: any) => void;
 }
-
-import { fixDateToBRT } from '@/lib/utils';
 
 const checkStatus = (expirationDate: string): DocumentStatus => {
     const expDate = fixDateToBRT(expirationDate);
     if (!expDate) return 'expired';
     
-    // Normalize "now" to midnight to compare only dates
     const now = new Date();
     now.setHours(0, 0, 0, 0);
     expDate.setHours(0, 0, 0, 0);
@@ -75,41 +71,49 @@ export const useDocumentStore = create<DocumentStore>()(
     persist(
         (set, get) => ({
             documents: [],
-            addDocument: (doc) => {
-                const id = crypto.randomUUID();
-                const now = new Date().toISOString();
-                const status = checkStatus(doc.expirationDate);
 
-                const currentUser = useAuthStore.getState().currentUser;
-                if (currentUser) {
-                    useAuditStore.getState().addLog({
-                        userId: currentUser.id,
-                        userName: currentUser.name,
-                        action: 'CRIAR',
-                        entity: 'DOCUMENTO',
-                        details: `Fez upload do documento "${doc.title}"`
-                    });
-                }
-
-                set((state) => {
-                    const result = {
-                        documents: [
-                            ...state.documents,
-                            { ...doc, id, createdAt: now, updatedAt: now, status },
-                        ],
-                    };
-                    import('@/lib/socket').then(({ socketService }) => {
-                        socketService.emit('system_action', { store: 'DOCUMENTS', type: 'ADD_DOC', payload: { ...doc, id, createdAt: now, updatedAt: now, status } });
-                    });
-                    return result;
-                });
+            setDocuments: (documents) => {
+                console.log('documentStore - Setting Documents:', documents);
+                set({ documents });
             },
-            updateDocument: (id, updatedFields) => {
+
+            addDocument: async (doc) => {
+                const status = checkStatus(doc.expirationDate);
+                const currentUser = useAuthStore.getState().currentUser;
+
+                try {
+                    const response = await api.post('/documents/company', {
+                        ...doc,
+                        status
+                    });
+
+                    const newDoc = response.data;
+
+                    if (currentUser) {
+                        useAuditStore.getState().addLog({
+                            userId: currentUser.id,
+                            userName: currentUser.name,
+                            action: 'CRIAR',
+                            entity: 'DOCUMENTO',
+                            details: `Fez upload do documento "${doc.title}"`
+                        });
+                    }
+
+                    set((state) => ({
+                        documents: [...state.documents, newDoc],
+                    }));
+                    
+                    socketService.emit('system_action', { store: 'DOCUMENTS', type: 'ADD_DOC', payload: newDoc });
+                } catch (error) {
+                    console.error('Failed to add document:', error);
+                }
+            },
+
+            updateDocument: async (id, updatedFields) => {
                 const currentUser = useAuthStore.getState().currentUser;
                 const oldDoc = get().documents.find(d => d.id === id);
 
                 if (currentUser && oldDoc && !updatedFields.lastNotifiedIndex) {
-                    // Avoid logging internal notification updates
                     useAuditStore.getState().addLog({
                         userId: currentUser.id,
                         userName: currentUser.name,
@@ -119,25 +123,21 @@ export const useDocumentStore = create<DocumentStore>()(
                     });
                 }
 
-                import('@/lib/socket').then(({ socketService }) => {
-                    socketService.emit('system_action', { store: 'DOCUMENTS', type: 'UPDATE_DOC', payload: { id, data: updatedFields } });
-                });
+                try {
+                    const response = await api.put(`/documents/company/${id}`, updatedFields);
+                    const updatedDoc = response.data;
 
-                set((state) => ({
-                    documents: state.documents.map((doc) => {
-                        if (doc.id === id) {
-                            const merged: any = { ...doc, ...updatedFields, updatedAt: new Date().toISOString() };
-                            // Re-check status if expiration date changed
-                            if (updatedFields.expirationDate) {
-                                merged.status = checkStatus(merged.expirationDate);
-                            }
-                            return merged as CompanyDocument;
-                        }
-                        return doc;
-                    }),
-                }));
+                    set((state) => ({
+                        documents: state.documents.map((doc) => doc.id === id ? updatedDoc : doc),
+                    }));
+
+                    socketService.emit('system_action', { store: 'DOCUMENTS', type: 'UPDATE_DOC', payload: { id, data: updatedFields } });
+                } catch (error) {
+                    console.error('Failed to update document:', error);
+                }
             },
-            trashDocument: (id) => {
+
+            trashDocument: async (id) => {
                 const currentUser = useAuthStore.getState().currentUser;
                 const targetDoc = get().documents.find(d => d.id === id);
 
@@ -151,47 +151,102 @@ export const useDocumentStore = create<DocumentStore>()(
                     });
                 }
 
-                import('@/lib/socket').then(({ socketService }) => {
-                    socketService.emit('system_action', { store: 'DOCUMENTS', type: 'TRASH_DOC', payload: { id } });
-                });
+                const now = new Date().toISOString();
+                const updates = { trashed: true, trashedAt: now };
 
-                set((state) => ({
-                    documents: state.documents.map((doc) => doc.id === id ? { ...doc, trashed: true, trashedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : doc),
-                }));
+                try {
+                    await api.put(`/documents/company/${id}`, updates);
+                    set((state) => ({
+                        documents: state.documents.map((doc) =>
+                            doc.id === id ? { ...doc, ...updates, updatedAt: now } : doc
+                        ),
+                    }));
+                    socketService.emit('system_action', { store: 'DOCUMENTS', type: 'TRASH_DOC', payload: { id } });
+                } catch (error) {
+                    console.error('Failed to trash document:', error);
+                }
             },
-            restoreDocument: (id) => {
-                set((state) => ({
-                    documents: state.documents.map((doc) => doc.id === id ? { ...doc, trashed: false, updatedAt: new Date().toISOString() } : doc),
-                }));
+
+            restoreDocument: async (id) => {
+                const now = new Date().toISOString();
+                const updates = { trashed: false };
+
+                try {
+                    await api.put(`/documents/company/${id}`, updates);
+                    set((state) => ({
+                        documents: state.documents.map((doc) =>
+                            doc.id === id ? { ...doc, ...updates, updatedAt: now } : doc
+                        ),
+                    }));
+                    socketService.emit('system_action', { store: 'DOCUMENTS', type: 'RESTORE_DOC', payload: { id } });
+                } catch (error) {
+                    console.error('Failed to restore document:', error);
+                }
             },
-            permanentlyDeleteDocument: (id) => {
-                set((state) => ({
-                    documents: state.documents.filter((doc) => doc.id !== id),
-                }));
+
+            permanentlyDeleteDocument: async (id) => {
+                try {
+                    await api.delete(`/documents/company/${id}`);
+                    set((state) => ({
+                        documents: state.documents.filter((doc) => doc.id !== id),
+                    }));
+                    socketService.emit('system_action', { store: 'DOCUMENTS', type: 'DELETE_DOC', payload: { id } });
+                } catch (error) {
+                    console.error('Failed to delete document:', error);
+                }
             },
+
             validateDocumentStatuses: () => {
-                set((state) => {
-                    let changed = false;
-                    const newDocs = state.documents.map(doc => {
-                        if (doc.trashed) return doc; // Don't validate trashed docs
-                        const newStatus = checkStatus(doc.expirationDate);
-                        if (newStatus !== doc.status) {
-                            changed = true;
-                            return { ...doc, status: newStatus } as CompanyDocument;
-                        }
-                        return doc;
-                    });
-                    return changed ? { documents: newDocs } : state;
-                });
+                set((state) => ({
+                    documents: state.documents.map((doc) => ({
+                        ...doc,
+                        status: checkStatus(doc.expirationDate),
+                    })),
+                }));
             },
-            cleanOldTrash: () => set(state => {
+
+            cleanOldTrash: () => {
+                const state = get();
                 const thirtyDaysAgo = new Date();
                 thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-                return {
-                    documents: state.documents.filter(doc => !doc.trashedAt || new Date(doc.trashedAt) >= thirtyDaysAgo)
-                };
-            })
+                const toDelete = state.documents.filter(doc => doc.trashedAt && new Date(doc.trashedAt) < thirtyDaysAgo);
+                
+                toDelete.forEach(doc => get().permanentlyDeleteDocument(doc.id));
+            },
+
+            processSystemAction: (action: any) => {
+                const { type, payload } = action;
+                if (type === 'ADD_DOC') {
+                    set(s => {
+                        if (s.documents.some(d => d.id === payload.id)) return s;
+                        return { documents: [...s.documents, payload] };
+                    });
+                } else if (type === 'UPDATE_DOC') {
+                    set(s => ({
+                        documents: s.documents.map(d => {
+                            if (d.id === payload.id) {
+                                const merged: any = { ...d, ...payload.data, updatedAt: new Date().toISOString() };
+                                if (payload.data.expirationDate) {
+                                    merged.status = checkStatus(merged.expirationDate);
+                                }
+                                return merged;
+                            }
+                            return d;
+                        })
+                    }));
+                } else if (type === 'TRASH_DOC') {
+                    set(s => ({
+                        documents: s.documents.map(d => d.id === payload.id ? { ...d, trashed: true, trashedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : d)
+                    }));
+                } else if (type === 'RESTORE_DOC') {
+                    set(s => ({
+                        documents: s.documents.map(d => d.id === payload.id ? { ...d, trashed: false, updatedAt: new Date().toISOString() } : d)
+                    }));
+                } else if (type === 'DELETE_DOC') {
+                    set(s => ({ documents: s.documents.filter(d => d.id !== payload.id) }));
+                }
+            }
         }),
         {
             name: 'polaryon-document-storage',
@@ -200,22 +255,9 @@ export const useDocumentStore = create<DocumentStore>()(
     )
 );
 
-// Listen for remote updates
-import('@/lib/socket').then(({ socketService }) => {
-    socketService.on('system_sync', ({ store, type, payload }: any) => {
-        if (store !== 'DOCUMENTS') return;
-        
-        if (type === 'ADD_DOC') {
-            useDocumentStore.setState(s => ({ documents: [...s.documents, payload] }));
-        } else if (type === 'UPDATE_DOC') {
-            useDocumentStore.setState(s => ({
-                documents: s.documents.map(d => d.id === payload.id ? { ...d, ...payload.data, updatedAt: new Date().toISOString() } : d)
-            }));
-        } else if (type === 'TRASH_DOC') {
-            useDocumentStore.setState(s => ({
-                documents: s.documents.map(d => d.id === payload.id ? { ...d, trashed: true, trashedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : d)
-            }));
-        }
-    });
+// Subscribe to global system events
+socketService.on('system_sync', (action: any) => {
+    if (action.store === 'DOCUMENTS') {
+        useDocumentStore.getState().processSystemAction(action);
+    }
 });
-

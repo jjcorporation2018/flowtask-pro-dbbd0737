@@ -52,13 +52,19 @@ router.post('/sync', async (req: Request, res: Response) => {
 
         // Basic one-way push from Polaryon to Google
         if (eventsToPush && Array.isArray(eventsToPush)) {
+            console.log(`🚀 Starting sync of ${eventsToPush.length} events to Google...`);
             for (const ev of eventsToPush) {
+                const startDate = ev.date.split('T')[0];
+                const endD = new Date(startDate);
+                endD.setDate(endD.getDate() + 1);
+                const endDate = endD.toISOString().split('T')[0];
+
                 await pushEventToGoogle({
                     summary: ev.title,
                     description: '*[Gerado automaticamente pelo Polaryon]*\n\nEste é um evento criado pelo sistema de gestão. Não o apague para manter a sincronia.',
-                    start: { date: ev.date.split('T')[0] },
-                    end: { date: ev.date.split('T')[0] }
-                }, ev.id); // Passing ev.id to track and update existing events
+                    start: { date: startDate },
+                    end: { date: endDate }
+                }, ev.id);
             }
         }
 

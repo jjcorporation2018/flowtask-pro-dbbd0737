@@ -30,8 +30,8 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
         const p = location.pathname;
         const hasScreenAccess = useAuthStore.getState().hasScreenAccess;
 
-        // Forced routes for accountants bypassing normal checks
-        if (role === 'CONTADOR') {
+        // Forced routes for accountants bypassing normal checks if no specific access is granted
+        if (role === 'CONTADOR' && !hasScreenAccess('DOCUMENTATION') && !hasScreenAccess('SUPPLIERS')) {
             if (!p.startsWith('/contabil')) {
                 navigate('/contabil?tab=exportacao', { replace: true });
             }

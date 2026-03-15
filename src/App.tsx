@@ -44,6 +44,7 @@ import { useCertificateStore } from '@/store/certificate-store';
 
 const AppContent = () => {
   const { cleanupTrash, cleanOldTrash: cleanKanbanTrash, companies, permanentlyDeleteCompany, updateCompany, fetchKanbanData } = useKanbanStore();
+  const { isAuthenticated, currentUser: authUser } = useAuthStore();
   const { uiZoom, isDark } = useUserPrefsStore();
   const { documents, validateDocumentStatuses, cleanOldTrash: cleanDocsTrash } = useDocumentStore();
   const { cleanOldTrash: cleanAccountingTrash } = useAccountingStore();
@@ -70,18 +71,17 @@ const AppContent = () => {
   }, []);
 
   useEffect(() => {
-    cleanupTrash(); // Keep the old 15-day cleanup for cards if that's what's intended, or just run the new one
-
-    // Purging soft-deleted items older than 30 days
+    if (!isAuthenticated) return;
+    
+    cleanupTrash();
     cleanKanbanTrash();
     cleanDocsTrash();
     cleanAccountingTrash();
     cleanEssentialDocsTrash();
     cleanCertificateTrash();
 
-    // Fetch initial DB state for Kanban
     fetchKanbanData();
-  }, [cleanupTrash, cleanKanbanTrash, cleanDocsTrash, cleanAccountingTrash, cleanEssentialDocsTrash, cleanCertificateTrash, fetchKanbanData]);
+  }, [isAuthenticated, cleanupTrash, cleanKanbanTrash, cleanDocsTrash, cleanAccountingTrash, cleanEssentialDocsTrash, cleanCertificateTrash, fetchKanbanData]);
 
   // Background CNPJ Monitor
   useEffect(() => {

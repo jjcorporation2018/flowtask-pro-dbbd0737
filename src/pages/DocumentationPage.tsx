@@ -7,6 +7,8 @@ import DocumentCalendarView from '@/components/documentation/DocumentCalendarVie
 import { fixDateToBRT } from '@/lib/utils';
 
 import { useAuthStore } from '@/store/auth-store';
+import { useKanbanStore } from '@/store/kanban-store';
+import { useEffect } from 'react';
 
 const DocumentationPage = () => {
     const { currentUser } = useAuthStore();
@@ -18,6 +20,26 @@ const DocumentationPage = () => {
     const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingDoc, setEditingDoc] = useState<CompanyDocument | null>(null);
+    const { fetchKanbanData } = useKanbanStore();
+
+    useEffect(() => {
+        // Force refresh on mount and if documents are empty
+        console.log('DocumentationPage - Component Mounted, fetching data...');
+        fetchKanbanData();
+    }, [fetchKanbanData]);
+
+    // Extra safeguard: if documents is still empty after 2 seconds, try one more time
+    useEffect(() => {
+        if (documents.length === 0) {
+            const timer = setTimeout(() => {
+                console.log('DocumentationPage - Documents still empty, retrying sync...');
+                fetchKanbanData();
+            }, 2000);
+            return () => clearTimeout(timer);
+        }
+    }, [documents.length, fetchKanbanData]);
+
+    console.log('DocumentationPage - Current Documents:', documents);
 
     const documentTypes = [
         "Habilitação jurídica", "Regularidade fiscal", "Regularidade trabalhista",

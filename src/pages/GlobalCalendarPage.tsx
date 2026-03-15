@@ -9,7 +9,7 @@ import api from '@/lib/api';
 import { toast } from 'sonner';
 
 export default function GlobalCalendarPage() {
-    const { cards, boards, lists, labels, budgets } = useKanbanStore();
+    const { cards, boards, lists, labels, budgets, googleEvents, setGoogleEvents } = useKanbanStore();
     const { documents } = useDocumentStore();
     const { taxObligations } = useAccountingStore();
     const { currentUser } = useAuthStore();
@@ -21,8 +21,6 @@ export default function GlobalCalendarPage() {
 
     // Feriados da Brasil API
     const [holidays, setHolidays] = useState<{ date: string; name: string }[]>([]);
-
-    const [googleEvents, setGoogleEvents] = useState<any[]>([]);
 
     useEffect(() => {
         const year = currentDate.getFullYear();
@@ -76,6 +74,20 @@ export default function GlobalCalendarPage() {
 
             if (res.data.success && res.data.events) {
                 setGoogleEvents(res.data.events);
+                // Broadcast the sync to all other users so they get the updated calendar state too
+                api.post('/kanban/socketproxy', { 
+                    store: 'GOOGLE_CALENDAR', 
+                    type: 'SYNC_COMPLETE', 
+                    payload: res.data.events 
+                }).catch(() => {
+                    // Fallback to direct emit if proxy route not available
+                    const { socketService } = require('@/lib/socket');
+                    socketService.emit('system_action', { 
+                        store: 'GOOGLE_CALENDAR', 
+                        type: 'SYNC_COMPLETE', 
+                        payload: res.data.events 
+                    });
+                });
                 toast.success("Conexão e sincronização concluída com sucesso!", { id: 'gcal' });
             }
         } catch (err: any) {
@@ -220,8 +232,11 @@ export default function GlobalCalendarPage() {
                         </div>
                     </div>
                     <div className="flex items-center gap-4">
-                        {currentUser?.email === 'jjcorporation2018@gmail.com' && (
-                            <button onClick={syncWithGoogleCalendar} className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded shadow-sm transition-colors">
+                        {['jjcorporation2018@gmail.com', 'jefersonvilela72@gmail.com', 'jeferson99jeferson@gmail.com'].includes(currentUser?.email?.toLowerCase() || '') && (
+                            <button 
+                                onClick={syncWithGoogleCalendar} 
+                                className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded shadow-sm transition-colors"
+                            >
                                 <span className="w-4 h-4 rounded-full bg-white text-blue-600 flex items-center justify-center font-bold text-[10px]">G</span>
                                 Sincronizar G Agenda
                             </button>

@@ -14,7 +14,7 @@ import { AnimatePresence } from 'framer-motion';
 const AppHeader = () => {
   const { folders, boards, lists, cards, companies, budgets, notifications, markNotificationRead, markAllNotificationsRead, clearNotifications } = useKanbanStore();
   const { isDark, toggleTheme, uiZoom, setUiZoom, setMobileMenuOpen } = useUserPrefsStore();
-  const { currentUser } = useAuthStore();
+  const { currentUser, hasScreenAccess } = useAuthStore();
   const location = useLocation();
   const navigate = useNavigate();
   const [searchOpen, setSearchOpen] = useState(false);
@@ -93,72 +93,76 @@ const AppHeader = () => {
             <LayoutDashboard className="h-3.5 w-3.5 inline mr-1" />
             <span className="uppercase tracking-wider">Tarefas</span>
           </Link>
-          <Link
-            to="/kunbun"
-            className={`px-2 sm:px-3 py-1.5 rounded text-[10px] sm:text-xs font-medium transition-colors ${location.pathname === '/kunbun' || location.pathname.startsWith('/folder') || location.pathname.startsWith('/board') ? 'bg-primary/20 text-white' : 'hover:bg-primary/10 text-white/80 hover:text-white'
-              }`}
-          >
-            <LayoutGrid className="h-3.5 w-3.5 inline mr-1" />
-            <span className="uppercase tracking-wider">Kunbun</span>
-          </Link>
-          <Link
-            to="/oportunidades"
-            className={`px-2 sm:px-3 py-1.5 rounded text-[10px] sm:text-xs font-medium transition-colors ${location.pathname.startsWith('/oportunidades') ? 'bg-primary/20 text-white' : 'hover:bg-primary/10 text-white/80 hover:text-white'
-              }`}
-          >
-            <Target className="h-3.5 w-3.5 inline mr-1" />
-            <span className="uppercase tracking-wider">Oportunidades</span>
-          </Link>
-          {/* Botão Gestor de Licitação Oculto a pedido do P.O
-          <Link
-            to="/licitacao"
-            className={`px-2 sm:px-3 py-1.5 rounded text-[10px] sm:text-xs font-medium transition-colors ${location.pathname.startsWith('/licitacao') ? 'bg-primary/20 text-white' : 'hover:bg-primary/10 text-white/80 hover:text-white'
-              }`}
-          >
-            <Gavel className="h-3.5 w-3.5 inline mr-1" />
-            <span className="uppercase tracking-wider">Gestor de Licitação</span>
-          </Link>
-          */}
-          <Link
-            to="/suppliers"
-            className={`px-2 sm:px-3 py-1.5 rounded text-[10px] sm:text-xs font-medium transition-colors ${location.pathname === '/suppliers' || location.pathname.startsWith('/suppliers-list') || location.pathname.startsWith('/transporters-list') ? 'bg-primary/20 text-white' : 'hover:bg-primary/10 text-white/80 hover:text-white'
-              }`}
-          >
-            <Briefcase className="h-3.5 w-3.5 inline mr-1" />
-            <span className="uppercase tracking-wider">Fornecedores e Transportadoras</span>
-          </Link>
-          <Link
-            to="/budgets"
-            className={`px-2 sm:px-3 py-1.5 rounded text-[10px] sm:text-xs font-medium transition-colors ${location.pathname.startsWith('/budgets') ? 'bg-primary/20 text-white' : 'hover:bg-primary/10 text-white/80 hover:text-white'
-              }`}
-          >
-            <Calculator className="h-3.5 w-3.5 inline mr-1" />
-            <span className="uppercase tracking-wider">Orçamentos</span>
-          </Link>
-          <Link
-            to="/company"
-            className={`px-2 sm:px-3 py-1.5 rounded text-[10px] sm:text-xs font-medium transition-colors ${location.pathname.startsWith('/company') ? 'bg-primary/20 text-accent font-bold' : 'hover:bg-primary/10 text-white/80 hover:text-white'
-              }`}
-          >
-            <Building2 className="h-3.5 w-3.5 inline mr-1" />
-            <span className="uppercase tracking-wider">Empresa</span>
-          </Link>
-          <Link
-            to="/documentacao"
-            className={`px-2 sm:px-3 py-1.5 rounded text-[10px] sm:text-xs font-medium transition-colors ${location.pathname.startsWith('/documentacao') ? 'bg-primary/20 text-accent font-bold' : 'hover:bg-primary/10 text-white/80 hover:text-white'
-              }`}
-          >
-            <FileText className="h-3.5 w-3.5 inline mr-1" />
-            <span className="uppercase tracking-wider">Documentação</span>
-          </Link>
-          <Link
-            to="/contabil"
-            className={`px-2 sm:px-3 py-1.5 rounded text-[10px] sm:text-xs font-medium transition-colors ${location.pathname.startsWith('/contabil') ? 'bg-primary/20 text-emerald-500 font-bold' : 'hover:bg-primary/10 text-white/80 hover:text-white'
-              }`}
-          >
-            <PiggyBank className="h-3.5 w-3.5 inline mr-1" />
-            <span className="uppercase tracking-wider">Contábil</span>
-          </Link>
+          {hasScreenAccess('KUNBUN') && (
+            <Link
+              to="/kunbun"
+              className={`px-2 sm:px-3 py-1.5 rounded text-[10px] sm:text-xs font-medium transition-colors ${location.pathname === '/kunbun' || location.pathname.startsWith('/folder') || location.pathname.startsWith('/board') ? 'bg-primary/20 text-white' : 'hover:bg-primary/10 text-white/80 hover:text-white'
+                }`}
+            >
+              <LayoutGrid className="h-3.5 w-3.5 inline mr-1" />
+              <span className="uppercase tracking-wider">Kunbun</span>
+            </Link>
+          )}
+          {hasScreenAccess('OPORTUNIDADES') && (
+            <Link
+              to="/oportunidades"
+              className={`px-2 sm:px-3 py-1.5 rounded text-[10px] sm:text-xs font-medium transition-colors ${location.pathname.startsWith('/oportunidades') ? 'bg-primary/20 text-white' : 'hover:bg-primary/10 text-white/80 hover:text-white'
+                }`}
+            >
+              <Target className="h-3.5 w-3.5 inline mr-1" />
+              <span className="uppercase tracking-wider">Oportunidades</span>
+            </Link>
+          )}
+          {hasScreenAccess('SUPPLIERS') && (
+            <Link
+              to="/suppliers"
+              className={`px-2 sm:px-3 py-1.5 rounded text-[10px] sm:text-xs font-medium transition-colors ${location.pathname === '/suppliers' || location.pathname.startsWith('/suppliers-list') || location.pathname.startsWith('/transporters-list') ? 'bg-primary/20 text-white' : 'hover:bg-primary/10 text-white/80 hover:text-white'
+                }`}
+            >
+              <Briefcase className="h-3.5 w-3.5 inline mr-1" />
+              <span className="uppercase tracking-wider">Fornecedores e Transportadoras</span>
+            </Link>
+          )}
+          {hasScreenAccess('BUDGETS') && (
+            <Link
+              to="/budgets"
+              className={`px-2 sm:px-3 py-1.5 rounded text-[10px] sm:text-xs font-medium transition-colors ${location.pathname.startsWith('/budgets') ? 'bg-primary/20 text-white' : 'hover:bg-primary/10 text-white/80 hover:text-white'
+                }`}
+            >
+              <Calculator className="h-3.5 w-3.5 inline mr-1" />
+              <span className="uppercase tracking-wider">Orçamentos</span>
+            </Link>
+          )}
+          {hasScreenAccess('ALL') && (
+            <Link
+              to="/company"
+              className={`px-2 sm:px-3 py-1.5 rounded text-[10px] sm:text-xs font-medium transition-colors ${location.pathname.startsWith('/company') ? 'bg-primary/20 text-accent font-bold' : 'hover:bg-primary/10 text-white/80 hover:text-white'
+                }`}
+            >
+              <Building2 className="h-3.5 w-3.5 inline mr-1" />
+              <span className="uppercase tracking-wider">Empresa</span>
+            </Link>
+          )}
+          {hasScreenAccess('DOCUMENTATION') && (
+            <Link
+              to="/documentacao"
+              className={`px-2 sm:px-3 py-1.5 rounded text-[10px] sm:text-xs font-medium transition-colors ${location.pathname.startsWith('/documentacao') ? 'bg-primary/20 text-accent font-bold' : 'hover:bg-primary/10 text-white/80 hover:text-white'
+                }`}
+            >
+              <FileText className="h-3.5 w-3.5 inline mr-1" />
+              <span className="uppercase tracking-wider">Documentação</span>
+            </Link>
+          )}
+          {hasScreenAccess('ACCOUNTING') && (
+            <Link
+              to="/contabil"
+              className={`px-2 sm:px-3 py-1.5 rounded text-[10px] sm:text-xs font-medium transition-colors ${location.pathname.startsWith('/contabil') ? 'bg-primary/20 text-emerald-500 font-bold' : 'hover:bg-primary/10 text-white/80 hover:text-white'
+                }`}
+            >
+              <PiggyBank className="h-3.5 w-3.5 inline mr-1" />
+              <span className="uppercase tracking-wider">Contábil</span>
+            </Link>
+          )}
         </div>
 
         {/* Mobile/Tablet Dropdown */}
@@ -179,32 +183,41 @@ const AppHeader = () => {
                 <Link to="/" onClick={() => setShowNavDropdown(false)} className={`px-4 py-3 flex items-center gap-3 text-sm border-b border-border/50 hover:bg-muted transition-colors ${location.pathname === '/' ? 'text-primary font-bold bg-primary/5' : 'text-foreground'}`}>
                   <div className="p-1.5 rounded bg-primary/10 text-primary"><LayoutDashboard className="h-4 w-4" /></div> Tarefas Principais
                 </Link>
-                <Link to="/kunbun" onClick={() => setShowNavDropdown(false)} className={`px-4 py-3 flex items-center gap-3 text-sm border-b border-border/50 hover:bg-muted transition-colors ${location.pathname === '/kunbun' || location.pathname.startsWith('/folder') || location.pathname.startsWith('/board') ? 'text-primary font-bold bg-primary/5' : 'text-foreground'}`}>
-                  <div className="p-1.5 rounded bg-primary/10 text-primary"><LayoutGrid className="h-4 w-4" /></div> Kunbun (Projetos)
-                </Link>
-                <Link to="/oportunidades" onClick={() => setShowNavDropdown(false)} className={`px-4 py-3 flex items-center gap-3 text-sm border-b border-border/50 hover:bg-muted transition-colors ${location.pathname.startsWith('/oportunidades') ? 'text-primary font-bold bg-primary/5' : 'text-foreground'}`}>
-                  <div className="p-1.5 rounded bg-primary/10 text-primary"><Target className="h-4 w-4" /></div> Oportunidades
-                </Link>
-                {/* Botão Mobile Gestor de Licitação Oculto a pedido do P.O
-                <Link to="/licitacao" onClick={() => setShowNavDropdown(false)} className={`px-4 py-3 flex items-center gap-3 text-sm border-b border-border/50 hover:bg-muted transition-colors ${location.pathname.startsWith('/licitacao') ? 'text-primary font-bold bg-primary/5' : 'text-foreground'}`}>
-                  <div className="p-1.5 rounded bg-primary/10 text-primary"><Gavel className="h-4 w-4" /></div> Gestor de Licitação
-                </Link>
-                */}
-                <Link to="/suppliers" onClick={() => setShowNavDropdown(false)} className={`px-4 py-3 flex items-center gap-3 text-sm border-b border-border/50 hover:bg-muted transition-colors ${location.pathname === '/suppliers' || location.pathname.startsWith('/suppliers-list') || location.pathname.startsWith('/transporters-list') ? 'text-primary font-bold bg-primary/5' : 'text-foreground'}`}>
-                  <div className="p-1.5 rounded bg-primary/10 text-primary"><Briefcase className="h-4 w-4" /></div> Fornecedores/Transportadoras
-                </Link>
-                <Link to="/budgets" onClick={() => setShowNavDropdown(false)} className={`px-4 py-3 flex items-center gap-3 text-sm border-b border-border/50 hover:bg-muted transition-colors ${location.pathname.startsWith('/budgets') ? 'text-primary font-bold bg-primary/5' : 'text-foreground'}`}>
-                  <div className="p-1.5 rounded bg-primary/10 text-primary"><Calculator className="h-4 w-4" /></div> Orçamentos
-                </Link>
-                <Link to="/company" onClick={() => setShowNavDropdown(false)} className={`px-4 py-3 flex items-center gap-3 text-sm border-b border-border/50 hover:bg-muted transition-colors ${location.pathname.startsWith('/company') ? 'text-accent font-bold bg-accent/5' : 'text-foreground'}`}>
-                  <div className="p-1.5 rounded bg-accent/10 text-accent"><Building2 className="h-4 w-4" /></div> Administradora
-                </Link>
-                <Link to="/documentacao" onClick={() => setShowNavDropdown(false)} className={`px-4 py-3 flex items-center gap-3 text-sm border-b border-border/50 hover:bg-muted transition-colors ${location.pathname.startsWith('/documentacao') ? 'text-accent font-bold bg-accent/5' : 'text-foreground'}`}>
-                  <div className="p-1.5 rounded bg-accent/10 text-accent"><FileText className="h-4 w-4" /></div> Documentação Integrada
-                </Link>
-                <Link to="/contabil" onClick={() => setShowNavDropdown(false)} className={`px-4 py-3 flex items-center gap-3 text-sm hover:bg-muted transition-colors ${location.pathname.startsWith('/contabil') ? 'text-emerald-500 font-bold bg-emerald-500/5' : 'text-foreground'}`}>
-                  <div className="p-1.5 rounded bg-emerald-500/10 text-emerald-500"><PiggyBank className="h-4 w-4" /></div> Módulo Contábil
-                </Link>
+                {hasScreenAccess('KUNBUN') && (
+                  <Link to="/kunbun" onClick={() => setShowNavDropdown(false)} className={`px-4 py-3 flex items-center gap-3 text-sm border-b border-border/50 hover:bg-muted transition-colors ${location.pathname === '/kunbun' || location.pathname.startsWith('/folder') || location.pathname.startsWith('/board') ? 'text-primary font-bold bg-primary/5' : 'text-foreground'}`}>
+                    <div className="p-1.5 rounded bg-primary/10 text-primary"><LayoutGrid className="h-4 w-4" /></div> Kunbun (Projetos)
+                  </Link>
+                )}
+                {hasScreenAccess('OPORTUNIDADES') && (
+                  <Link to="/oportunidades" onClick={() => setShowNavDropdown(false)} className={`px-4 py-3 flex items-center gap-3 text-sm border-b border-border/50 hover:bg-muted transition-colors ${location.pathname.startsWith('/oportunidades') ? 'text-primary font-bold bg-primary/5' : 'text-foreground'}`}>
+                    <div className="p-1.5 rounded bg-primary/10 text-primary"><Target className="h-4 w-4" /></div> Oportunidades
+                  </Link>
+                )}
+                {hasScreenAccess('SUPPLIERS') && (
+                  <Link to="/suppliers" onClick={() => setShowNavDropdown(false)} className={`px-4 py-3 flex items-center gap-3 text-sm border-b border-border/50 hover:bg-muted transition-colors ${location.pathname === '/suppliers' || location.pathname.startsWith('/suppliers-list') || location.pathname.startsWith('/transporters-list') ? 'text-primary font-bold bg-primary/5' : 'text-foreground'}`}>
+                    <div className="p-1.5 rounded bg-primary/10 text-primary"><Briefcase className="h-4 w-4" /></div> Fornecedores/Transportadoras
+                  </Link>
+                )}
+                {hasScreenAccess('BUDGETS') && (
+                  <Link to="/budgets" onClick={() => setShowNavDropdown(false)} className={`px-4 py-3 flex items-center gap-3 text-sm border-b border-border/50 hover:bg-muted transition-colors ${location.pathname.startsWith('/budgets') ? 'text-primary font-bold bg-primary/5' : 'text-foreground'}`}>
+                    <div className="p-1.5 rounded bg-primary/10 text-primary"><Calculator className="h-4 w-4" /></div> Orçamentos
+                  </Link>
+                )}
+                {hasScreenAccess('ALL') && (
+                  <Link to="/company" onClick={() => setShowNavDropdown(false)} className={`px-4 py-3 flex items-center gap-3 text-sm border-b border-border/50 hover:bg-muted transition-colors ${location.pathname.startsWith('/company') ? 'text-accent font-bold bg-accent/5' : 'text-foreground'}`}>
+                    <div className="p-1.5 rounded bg-accent/10 text-accent"><Building2 className="h-4 w-4" /></div> Administradora
+                  </Link>
+                )}
+                {hasScreenAccess('DOCUMENTATION') && (
+                  <Link to="/documentacao" onClick={() => setShowNavDropdown(false)} className={`px-4 py-3 flex items-center gap-3 text-sm border-b border-border/50 hover:bg-muted transition-colors ${location.pathname.startsWith('/documentacao') ? 'text-accent font-bold bg-accent/5' : 'text-foreground'}`}>
+                    <div className="p-1.5 rounded bg-accent/10 text-accent"><FileText className="h-4 w-4" /></div> Documentação Integrada
+                  </Link>
+                )}
+                {hasScreenAccess('ACCOUNTING') && (
+                  <Link to="/contabil" onClick={() => setShowNavDropdown(false)} className={`px-4 py-3 flex items-center gap-3 text-sm hover:bg-muted transition-colors ${location.pathname.startsWith('/contabil') ? 'text-emerald-500 font-bold bg-emerald-500/5' : 'text-foreground'}`}>
+                    <div className="p-1.5 rounded bg-emerald-500/10 text-emerald-500"><PiggyBank className="h-4 w-4" /></div> Módulo Contábil
+                  </Link>
+                )}
               </div>
             </>
           )}

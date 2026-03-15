@@ -22,13 +22,17 @@ export const oauth2Client = new OAuth2Client(
 // Load previous tokens into the client if they exist
 export const loadTokens = () => {
     try {
+        console.log(`📂 Attempting to load tokens from: ${TOKEN_PATH}`);
         if (fs.existsSync(TOKEN_PATH)) {
             const tokens = JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf-8'));
             oauth2Client.setCredentials(tokens);
+            console.log("✅ Tokens loaded and credentials set.");
             return true;
+        } else {
+            console.warn("⚠️ Token file not found at expected path.");
         }
     } catch (e) {
-        console.error("No valid calendar tokens found or parse error.", e);
+        console.error("❌ Failed to load or parse tokens:", e);
     }
     return false;
 };
@@ -48,10 +52,17 @@ export const getAuthUrl = () => {
 };
 
 export const saveTokens = async (code: string) => {
-    const { tokens } = await oauth2Client.getToken(code);
-    oauth2Client.setCredentials(tokens);
-    fs.writeFileSync(TOKEN_PATH, JSON.stringify(tokens));
-    return tokens;
+    try {
+        console.log("📥 Exchanging authorization code for tokens...");
+        const { tokens } = await oauth2Client.getToken(code);
+        oauth2Client.setCredentials(tokens);
+        fs.writeFileSync(TOKEN_PATH, JSON.stringify(tokens));
+        console.log(`✅ Tokens saved successfully to ${TOKEN_PATH}`);
+        return tokens;
+    } catch (error) {
+        console.error("❌ Error during saveTokens:", error);
+        throw error;
+    }
 };
 
 // Simple fetcher using the auth client's access token
@@ -66,10 +77,14 @@ export const fetchGoogleEvents = async () => {
     if (!accessToken) throw new Error("NEEDS_AUTH");
 
     const timeMin = new Date();
+    timeMin.setMonth(timeMin.getMonth() - 2); // Fetch from 2 months ago to see recent past
     timeMin.setHours(0, 0, 0, 0);
 
-    console.log(`📡 Fetching Google Events since ${timeMin.toISOString()}...`);
-    const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${timeMin.toISOString()}&singleEvents=true&orderBy=startTime`, {
+    const timeMax = new Date();
+    timeMax.setFullYear(timeMax.getFullYear() + 1); // 1 year into the future
+
+    console.log(`📡 Fetching Google Events between ${timeMin.toISOString()} and ${timeMax.toISOString()}...`);
+    const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${timeMin.toISOString()}&timeMax=${timeMax.toISOString()}&singleEvents=true&orderBy=startTime`, {
         headers: {
             'Authorization': `Bearer ${accessToken}`
         }
@@ -161,9 +176,10 @@ export const pushEventToGoogle = async (
 
     if (!response.ok) {
         const errorText = await response.text();
-        console.error("❌ Failed to push event to Google:", errorText);
+        console.error(`❌ Failed to push event to Google [${method}]:`, errorText);
     } else {
-        console.log("✅ Event pushed successfully to Google Calendar.");
+        const result = await response.json();
+        console.log(`✅ Event "${eventToPush.summary}" pushed successfully. Google ID: ${result.id}`);
     }
 };
 

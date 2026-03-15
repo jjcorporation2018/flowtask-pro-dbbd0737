@@ -1,10 +1,21 @@
 import { io, Socket } from 'socket.io-client';
 
+/**
+ * CRITICAL PRODUCTION CONFIGURATION: DO NOT REMOVE OR ALTER WITHOUT AUTHORIZATION.
+ * This logic ensures the WebSocket connects to the correct origin in production (VPS).
+ */
 const getSocketURL = () => {
-    const url = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-    // If it's a relative path starting with /api, we should use the same origin but at root
+    const isProd = import.meta.env.PROD;
+    const envUrl = import.meta.env.VITE_API_URL;
+    
+    if (isProd) {
+        // In production, always use the current domain to ensure WebSocket connectivity through Nginx proxy
+        return window.location.origin;
+    }
+    
+    // Development fallback
+    const url = envUrl || 'http://localhost:3000';
     if (url === '/api') return window.location.origin;
-    // Otherwise strip /api if it's an absolute URL
     return url.replace(/\/api$/, '');
 };
 
@@ -29,6 +40,10 @@ class SocketService {
 
             this.socket.on('kanban_sync', (data) => {
                 this.trigger('kanban_sync', data);
+            });
+
+            this.socket.on('system_sync', (data) => {
+                this.trigger('system_sync', data);
             });
         }
     }

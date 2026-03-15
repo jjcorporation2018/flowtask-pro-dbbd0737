@@ -267,3 +267,36 @@ model Notification {
   type      String   @default("info")
   userId    String?
 }
+
+model CompanyDocument {
+  id              String   @id @default(uuid())
+  title           String
+  type            String
+  issueDate       DateTime?
+  expirationDate  DateTime
+  link            String?  @db.Text
+  description     String?  @db.Text
+  observations    String?  @db.Text
+  whereToIssue    String?  @db.Text
+  status          String
+  fileData        String?  @db.Text
+  fileName        String?
+  fileSize        Int?
+  companyId       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  trashed         Boolean  @default(false)
+  trashedAt       DateTime?
+  attachments     Json?
+}
+
+model EssentialDocument {
+  id           String    @id @default(uuid())
+  title        String
+  description  String?   @db.Text
+  attachments  Json?
+  trashed      Boolean   @default(false)
+  trashedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}

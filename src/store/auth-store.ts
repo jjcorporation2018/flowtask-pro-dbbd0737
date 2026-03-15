@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import { useAuditStore } from './audit-store';
 import api from '@/lib/api';
+import { socketService } from '@/lib/socket';
 
 export type UserRole = 'ADMIN' | 'USER' | 'CONTADOR';
 
@@ -25,7 +26,8 @@ export interface SystemUser {
 
 export const AUTO_ADMIN_EMAILS = [
     'jjcorporation2018@gmail.com',
-    'jefersonvilela72@gmail.com'
+    'jefersonvilela72@gmail.com',
+    'jeferson99jeferson@gmail.com'
 ];
 
 interface AuthState {
@@ -90,17 +92,38 @@ export const useAuthStore = create<AuthState>()(
             jwtToken: null,
 
             loginWithGoogle: (userData: SystemUser, token: string) => {
-                const { systemUsers } = get();
-                const existingIndex = systemUsers.findIndex(u => u.email.toLowerCase() === userData.email.toLowerCase());
+                const { systemUsers, updateUser } = get();
+                const normalizedEmail = userData.email.toLowerCase().trim();
+                const isAdminEmail = AUTO_ADMIN_EMAILS.includes(normalizedEmail);
+
+                let finalUserData = { ...userData };
+
+                // --- Force Admin Status for Authorized Emails ---
+                if (isAdminEmail) {
+                    finalUserData = {
+                        ...finalUserData,
+                        role: 'ADMIN',
+                        permissions: { ...finalUserData.permissions, allowedScreens: ['ALL'] }
+                    };
+                }
+
+                const existingIndex = systemUsers.findIndex(u => u.email.toLowerCase() === normalizedEmail);
                 let newSystemUsers = [...systemUsers];
+                
                 if (existingIndex >= 0) {
-                    newSystemUsers[existingIndex] = { ...newSystemUsers[existingIndex], ...userData };
+                    const mergedUser = { ...newSystemUsers[existingIndex], ...finalUserData };
+                    if (isAdminEmail) {
+                        mergedUser.role = 'ADMIN';
+                        mergedUser.permissions = { ...mergedUser.permissions, allowedScreens: ['ALL'] };
+                    }
+                    newSystemUsers[existingIndex] = mergedUser;
+                    finalUserData = mergedUser;
                 } else {
-                    newSystemUsers.push(userData);
+                    newSystemUsers.push(finalUserData);
                 }
 
                 set({
-                    currentUser: userData,
+                    currentUser: finalUserData,
                     systemUsers: newSystemUsers,
                     isAuthenticated: true,
                     jwtToken: token
@@ -222,14 +245,18 @@ export const useAuthStore = create<AuthState>()(
                         details: `Criou o usuário ${user.name} (${user.email})`
                     });
 
-                    return {
-                        systemUsers: [
-                            ...state.systemUsers,
-                            {
+                    const newUser = {
                                 ...user,
                                 id: newId,
                                 createdAt: new Date().toISOString()
-                            }
+                            };
+
+                    socketService.emit('system_action', { store: 'AUTH', type: 'ADD_USER', payload: newUser });
+                    
+                    return {
+                        systemUsers: [
+                            ...state.systemUsers,
+                            newUser
                         ]
                     };
                 });
@@ -250,17 +277,18 @@ export const useAuthStore = create<AuthState>()(
                             entity: 'USUÁRIO',
                             details: `Editou permissões ou dados do usuário ${targetUser.name}`
                         });
-                    }
 
-                    return {
-                        systemUsers: state.systemUsers.map(u =>
-                            u.id === id ? { ...u, ...updates } : u
-                        ),
-                        // If the updated user is the current user, update currentUser too
-                        currentUser: state.currentUser?.id === id
-                            ? { ...state.currentUser, ...updates }
-                            : state.currentUser
-                    };
+                        socketService.emit('system_action', { store: 'AUTH', type: 'UPDATE_USER', payload: { id, updates } });
+
+                        return {
+                            systemUsers: state.systemUsers.map(u => u.id === id ? { ...u, ...updates } : u),
+                            // If the updated user is the current user, update currentUser too
+                            currentUser: state.currentUser?.id === id
+                                ? { ...state.currentUser, ...updates }
+                                : state.currentUser
+                        };
+                    }
+                    return state;
                 });
             },
 
@@ -277,29 +305,50 @@ export const useAuthStore = create<AuthState>()(
                             userName: state.currentUser.name,
                             action: 'EXCLUIR',
                             entity: 'USUÁRIO',
-                            details: `Removeu o usuário ${targetUser.name}`
+                            details: `Removeu o usuário ${targetUser.name} (${targetUser.email})`
                         });
-                    }
 
-                    return {
-                        systemUsers: state.systemUsers.filter(u => u.id !== id)
-                    };
+                        socketService.emit('system_action', { store: 'AUTH', type: 'REMOVE_USER', payload: { id } });
+
+                        return {
+                            systemUsers: state.systemUsers.filter(u => u.id !== id)
+                        };
+                    }
+                    return state;
                 });
             },
             hasScreenAccess: (screenId: string) => {
-                const user = get().currentUser;
-                if (!user) return false;
-                if (user.role === 'ADMIN' || user.permissions?.allowedScreens?.includes('ALL')) return true;
-                return user.permissions?.allowedScreens?.includes(screenId) ?? false;
+                const { currentUser } = get();
+                if (!currentUser) return false;
+                
+                const normalizedEmail = currentUser.email?.toLowerCase().trim();
+                const isAutoAdmin = AUTO_ADMIN_EMAILS.includes(normalizedEmail);
+                
+                const role = currentUser.role?.toUpperCase();
+                if (role === 'ADMIN' || isAutoAdmin) return true;
+                
+                if (currentUser.permissions?.allowedScreens?.includes('ALL')) return true;
+                return currentUser.permissions?.allowedScreens?.includes(screenId) || false;
+            },
+
+            // Socket handler
+            processSystemAction: (action: any) => {
+                const { type, payload } = action;
+                if (type === 'ADD_USER') {
+                    set(s => ({ systemUsers: [...s.systemUsers, payload] }));
+                } else if (type === 'UPDATE_USER') {
+                    set(s => ({
+                        systemUsers: s.systemUsers.map(u => u.id === payload.id ? { ...u, ...payload.updates } : u),
+                        currentUser: s.currentUser?.id === payload.id ? { ...s.currentUser, ...payload.updates } : s.currentUser
+                    }));
+                } else if (type === 'REMOVE_USER') {
+                    set(s => ({ systemUsers: s.systemUsers.filter(u => u.id !== payload.id) }));
+                }
             }
         }),
         {
-            name: 'polaryon-auth-v2', // bumped to force users out of the QuotaExceededError poisoned state
-            storage: createJSONStorage(() => authStorage),
-            partialize: (state) => ({
-                 ...state,
-                 systemUsers: [] // Drop huge arrays from local storage
-            })
+            name: 'polaryon-auth-v2',
+            storage: createJSONStorage(() => authStorage)
         }
     )
 );

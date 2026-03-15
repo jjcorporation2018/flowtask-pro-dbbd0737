@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { socketService } from '@/lib/socket';
 
 export interface ModelAttachment {
     id: string;
@@ -25,6 +26,7 @@ interface ModelStore {
     trashModel: (id: string) => void;
     restoreModel: (id: string) => void;
     permanentlyDeleteModel: (id: string) => void;
+    processSystemAction: (action: any) => void;
 }
 
 const PREDEFINED_MODELS: EssentialModel[] = [
@@ -115,39 +117,68 @@ export const useModelStore = create<ModelStore>()(
         (set) => ({
             models: PREDEFINED_MODELS,
 
-            addModel: (model) => set((state) => ({
-                models: [
-                    ...state.models,
-                    {
-                        ...model,
-                        id: crypto.randomUUID(),
-                        createdAt: new Date().toISOString(),
-                        isPredefined: false
-                    }
-                ]
-            })),
+            addModel: (model) => set((state) => {
+                const newModel = {
+                    ...model,
+                    id: crypto.randomUUID(),
+                    createdAt: new Date().toISOString(),
+                    isPredefined: false
+                };
+                socketService.emit('system_action', { store: 'MODELS', type: 'ADD_MODEL', payload: newModel });
+                return {
+                    models: [...state.models, newModel]
+                };
+            }),
 
-            updateModel: (id, updates) => set((state) => ({
-                models: state.models.map(model =>
-                    model.id === id ? { ...model, ...updates } : model
-                )
-            })),
+            updateModel: (id, updates) => set((state) => {
+                socketService.emit('system_action', { store: 'MODELS', type: 'UPDATE_MODEL', payload: { id, updates } });
+                return {
+                    models: state.models.map(model =>
+                        model.id === id ? { ...model, ...updates } : model
+                    )
+                };
+            }),
 
-            trashModel: (id) => set((state) => ({
-                models: state.models.map(model =>
-                    model.id === id ? { ...model, trashed: true } : model
-                )
-            })),
+            trashModel: (id) => set((state) => {
+                socketService.emit('system_action', { store: 'MODELS', type: 'TRASH_MODEL', payload: { id } });
+                return {
+                    models: state.models.map(model =>
+                        model.id === id ? { ...model, trashed: true } : model
+                    )
+                };
+            }),
 
-            restoreModel: (id) => set((state) => ({
-                models: state.models.map(model =>
-                    model.id === id ? { ...model, trashed: false } : model
-                )
-            })),
+            restoreModel: (id) => set((state) => {
+                socketService.emit('system_action', { store: 'MODELS', type: 'RESTORE_MODEL', payload: { id } });
+                return {
+                    models: state.models.map(model =>
+                        model.id === id ? { ...model, trashed: false } : model
+                    )
+                };
+            }),
 
-            permanentlyDeleteModel: (id) => set((state) => ({
-                models: state.models.filter(model => model.id !== id)
-            })),
+            permanentlyDeleteModel: (id) => set((state) => {
+                socketService.emit('system_action', { store: 'MODELS', type: 'DELETE_MODEL', payload: { id } });
+                return {
+                    models: state.models.filter(model => model.id !== id)
+                };
+            }),
+
+            // Socket processor
+            processSystemAction: (action: any) => {
+                const { type, payload } = action;
+                if (type === 'ADD_MODEL') {
+                    set(s => ({ models: [...s.models, payload] }));
+                } else if (type === 'UPDATE_MODEL') {
+                    set(s => ({ models: s.models.map(m => m.id === payload.id ? { ...m, ...payload.updates } : m) }));
+                } else if (type === 'TRASH_MODEL') {
+                    set(s => ({ models: s.models.map(m => m.id === payload.id ? { ...m, trashed: true } : m) }));
+                } else if (type === 'RESTORE_MODEL') {
+                    set(s => ({ models: s.models.map(m => m.id === payload.id ? { ...m, trashed: false } : m) }));
+                } else if (type === 'DELETE_MODEL') {
+                    set(s => ({ models: s.models.filter(m => m.id !== payload.id) }));
+                }
+            }
         }),
         {
             name: 'polaryon-model-storage',
@@ -171,3 +202,10 @@ export const useModelStore = create<ModelStore>()(
         }
     )
 );
+
+// Subscribe to global system events
+socketService.on('system_sync', (action: any) => {
+    if (action.store === 'MODELS') {
+        useModelStore.getState().processSystemAction(action);
+    }
+});

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { socketService } from '@/lib/socket';
 
 export interface CertificateAttachment {
     id: string;
@@ -33,6 +34,7 @@ interface CertificateStore {
     restoreCertificate: (id: string) => void;
     permanentlyDeleteCertificate: (id: string) => void;
     cleanOldTrash: () => void;
+    processSystemAction: (action: any) => void;
 }
 
 export const useCertificateStore = create<CertificateStore>()(
@@ -42,51 +44,50 @@ export const useCertificateStore = create<CertificateStore>()(
             addCertificate: (cert) => {
                 const id = crypto.randomUUID();
                 const now = new Date().toISOString();
-                set((state) => {
-                    const result = {
-                        certificates: [
-                            ...state.certificates,
-                            { ...cert, id, createdAt: now, updatedAt: now },
-                        ],
-                    };
-                    import('@/lib/socket').then(({ socketService }) => {
-                        socketService.emit('system_action', { store: 'CERTIFICATES', type: 'ADD_CERT', payload: { ...cert, id, createdAt: now, updatedAt: now } });
-                    });
-                    return result;
-                });
+                const newCert = { ...cert, id, createdAt: now, updatedAt: now };
+                set((state) => ({
+                    certificates: [...state.certificates, newCert],
+                }));
+                socketService.emit('system_action', { store: 'CERTIFICATES', type: 'ADD_CERT', payload: newCert });
             },
+
             updateCertificate: (id, updatedFields) => {
-                import('@/lib/socket').then(({ socketService }) => {
-                    socketService.emit('system_action', { store: 'CERTIFICATES', type: 'UPDATE_CERT', payload: { id, data: updatedFields } });
-                });
+                const now = new Date().toISOString();
                 set((state) => ({
                     certificates: state.certificates.map((cert) =>
-                        cert.id === id ? { ...cert, ...updatedFields, updatedAt: new Date().toISOString() } : cert
+                        cert.id === id ? { ...cert, ...updatedFields, updatedAt: now } : cert
                     ),
                 }));
+                socketService.emit('system_action', { store: 'CERTIFICATES', type: 'UPDATE_CERT', payload: { id, data: updatedFields } });
             },
+
             trashCertificate: (id) => {
-                import('@/lib/socket').then(({ socketService }) => {
-                    socketService.emit('system_action', { store: 'CERTIFICATES', type: 'TRASH_CERT', payload: { id } });
-                });
+                const now = new Date().toISOString();
                 set((state) => ({
                     certificates: state.certificates.map((cert) =>
-                        cert.id === id ? { ...cert, trashed: true, trashedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : cert
+                        cert.id === id ? { ...cert, trashed: true, trashedAt: now, updatedAt: now } : cert
                     ),
                 }));
+                socketService.emit('system_action', { store: 'CERTIFICATES', type: 'TRASH_CERT', payload: { id } });
             },
+
             restoreCertificate: (id) => {
+                const now = new Date().toISOString();
                 set((state) => ({
                     certificates: state.certificates.map((cert) =>
-                        cert.id === id ? { ...cert, trashed: false, updatedAt: new Date().toISOString() } : cert
+                        cert.id === id ? { ...cert, trashed: false, updatedAt: now } : cert
                     ),
                 }));
+                socketService.emit('system_action', { store: 'CERTIFICATES', type: 'RESTORE_CERT', payload: { id } });
             },
+
             permanentlyDeleteCertificate: (id) => {
                 set((state) => ({
                     certificates: state.certificates.filter((cert) => cert.id !== id),
                 }));
+                socketService.emit('system_action', { store: 'CERTIFICATES', type: 'DELETE_CERT', payload: { id } });
             },
+
             cleanOldTrash: () => set(state => {
                 const thirtyDaysAgo = new Date();
                 thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -94,7 +95,28 @@ export const useCertificateStore = create<CertificateStore>()(
                 return {
                     certificates: state.certificates.filter(cert => !cert.trashedAt || new Date(cert.trashedAt) >= thirtyDaysAgo)
                 };
-            })
+            }),
+
+            processSystemAction: (action: any) => {
+                const { type, payload } = action;
+                if (type === 'ADD_CERT') {
+                    set(s => ({ certificates: [...s.certificates, payload] }));
+                } else if (type === 'UPDATE_CERT') {
+                    set(s => ({
+                        certificates: s.certificates.map(c => c.id === payload.id ? { ...c, ...payload.data, updatedAt: new Date().toISOString() } : c)
+                    }));
+                } else if (type === 'TRASH_CERT') {
+                    set(s => ({
+                        certificates: s.certificates.map(c => c.id === payload.id ? { ...c, trashed: true, trashedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : c)
+                    }));
+                } else if (type === 'RESTORE_CERT') {
+                    set(s => ({
+                        certificates: s.certificates.map(c => c.id === payload.id ? { ...c, trashed: false, updatedAt: new Date().toISOString() } : c)
+                    }));
+                } else if (type === 'DELETE_CERT') {
+                    set(s => ({ certificates: s.certificates.filter(c => c.id !== payload.id) }));
+                }
+            }
         }),
         {
             name: 'polaryon-certificates-storage',
@@ -103,22 +125,10 @@ export const useCertificateStore = create<CertificateStore>()(
     )
 );
 
-// Listen for remote updates
-import('@/lib/socket').then(({ socketService }) => {
-    socketService.on('system_sync', ({ store, type, payload }: any) => {
-        if (store !== 'CERTIFICATES') return;
-
-        if (type === 'ADD_CERT') {
-            useCertificateStore.setState(s => ({ certificates: [...s.certificates, payload] }));
-        } else if (type === 'UPDATE_CERT') {
-            useCertificateStore.setState(s => ({
-                certificates: s.certificates.map(c => c.id === payload.id ? { ...c, ...payload.data, updatedAt: new Date().toISOString() } : c)
-            }));
-        } else if (type === 'TRASH_CERT') {
-            useCertificateStore.setState(s => ({
-                certificates: s.certificates.map(c => c.id === payload.id ? { ...c, trashed: true, trashedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : c)
-            }));
-        }
-    });
+// Subscribe to global system events
+socketService.on('system_sync', (action: any) => {
+    if (action.store === 'CERTIFICATES') {
+        useCertificateStore.getState().processSystemAction(action);
+    }
 });
 

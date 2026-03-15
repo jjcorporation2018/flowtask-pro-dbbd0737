@@ -10,7 +10,7 @@ const prisma = new PrismaClient({
 
 async function main() {
     const users = await prisma.user.findMany({
-        where: { email: { in: ['jefersonmoraes72@gmail.com', 'jjcorporation2018@gmail.com'] } }
+        where: { email: { in: ['jefersonmoraes72@gmail.com', 'jjcorporation2018@gmail.com', 'jefersonvilela72@gmail.com', 'jeferson99jeferson@gmail.com'] } }
     });
     console.log("Database user objects:", JSON.stringify(users.map(user => ({ ...user, picture: user.picture ? `[BASE64 SIZE: ${user.picture.length}]` : null })), null, 2));
     

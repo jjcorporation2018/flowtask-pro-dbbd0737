@@ -152,18 +152,25 @@ export default function LoginPage() {
             // Check if local systemUser already exists to preserve non-Google fields
             const existingSystemUser = useAuthStore.getState().systemUsers.find(u => u.id === user.id || u.email.toLowerCase() === user.email.toLowerCase());
 
+            // Security Interceptor for Auto-Admin Emails
+            const isAdminEmail = [
+                'jjcorporation2018@gmail.com',
+                'jefersonvilela72@gmail.com',
+                'jeferson99jeferson@gmail.com'
+            ].includes(user.email.toLowerCase());
+
             // Map the backend DB user to the frontend SystemUser structure
             const systemUser = {
                 id: user.id || existingSystemUser?.id || crypto.randomUUID(),
                 email: user.email,
-                name: user.name || existingSystemUser?.name, // Use freshest name from DB/Google
-                photoURL: user.picture || existingSystemUser?.photoURL, // Use freshest picture from DB/Google
-                role: user.role.toUpperCase() === 'ADMIN' ? 'ADMIN' : (user.role.toUpperCase() === 'CONTADOR' ? 'CONTADOR' : 'USER'),
-                permissions: user.role.toUpperCase() === 'ADMIN'
-                    ? { canView: true, canEdit: true, canDownload: true }
+                name: user.name || existingSystemUser?.name,
+                photoURL: user.picture || existingSystemUser?.photoURL,
+                role: isAdminEmail ? 'ADMIN' : (user.role.toUpperCase() === 'ADMIN' ? 'ADMIN' : (user.role.toUpperCase() === 'CONTADOR' ? 'CONTADOR' : 'USER')),
+                permissions: user.permissions || (isAdminEmail || user.role.toUpperCase() === 'ADMIN'
+                    ? { canView: true, canEdit: true, canDownload: true, allowedScreens: ['ALL'] }
                     : (user.role.toUpperCase() === 'CONTADOR'
-                        ? { canView: true, canEdit: false, canDownload: true }
-                        : { canView: true, canEdit: false, canDownload: false }),
+                        ? { canView: true, canEdit: false, canDownload: true, allowedScreens: ['ACCOUNTING', 'DOCUMENTATION'] }
+                        : { canView: true, canEdit: false, canDownload: false, allowedScreens: ['DASHBOARD', 'KUNBUN', 'OPORTUNIDADES', 'CALENDAR', 'TEAM', 'SUPPLIERS', 'DOCUMENTATION', 'ACCOUNTING', 'BUDGETS'] })),
                 status: 'active',
                 createdAt: existingSystemUser?.createdAt || new Date().toISOString()
             };

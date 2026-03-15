@@ -333,6 +333,30 @@ router.put('/cards/:id', async (req: Request, res: Response) => {
     }
 });
 
+router.post('/cards/reorder', async (req: Request, res: Response) => {
+    try {
+        const { listId, cardIds } = req.body;
+        if (!listId || !Array.isArray(cardIds)) {
+            return res.status(400).json({ error: 'listId and cardIds array are required' });
+        }
+
+        // Use transaction to ensure all positions are updated correctly
+        await prisma.$transaction(
+            cardIds.map((id, index) =>
+                prisma.card.update({
+                    where: { id },
+                    data: { listId, position: index }
+                })
+            )
+        );
+
+        res.json({ success: true });
+    } catch (e: any) {
+        console.error("Card Reorder Error:", e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
 router.delete('/cards/:id', async (req: Request, res: Response) => {
     try {
         await prisma.card.delete({ where: { id: req.params.id as string } });
@@ -540,7 +564,7 @@ router.get('/sync', async (req: Request, res: Response) => {
             skipDuplicates: true
         }).catch(e => console.error("Label seed skipped", e));
 
-        const [folders, boards, lists, cards, companies, mainCompanies, routes, budgets, notifications, usersDb, labels] = await Promise.all([
+        const [folders, boards, lists, cards, companies, mainCompanies, routes, budgets, notifications, usersDb, labels, companyDocs, essentialDocs] = await Promise.all([
             prisma.folder.findMany(),
             prisma.board.findMany(),
             prisma.kanbanList.findMany(),
@@ -565,10 +589,12 @@ router.get('/sync', async (req: Request, res: Response) => {
                     picture: true
                 }
             }),
-            prisma.label.findMany()
+            prisma.label.findMany(),
+            prisma.companyDocument.findMany(),
+            prisma.essentialDocument.findMany()
         ]);
 
-        const members = usersDb.map(u => ({
+        const members = usersDb.map((u: any) => ({
             id: u.id,
             name: u.name || u.email.split('@')[0],
             email: u.email,
@@ -580,7 +606,11 @@ router.get('/sync', async (req: Request, res: Response) => {
             labels: c.labels.map((l: any) => l.labelId) // flatten intersection table into string array
         }));
 
-        res.json({ folders, boards, lists, cards: formattedCards, companies, mainCompanies, routes, budgets, notifications, members, labels });
+        res.json({ 
+            folders, boards, lists, cards: formattedCards, companies, 
+            mainCompanies, routes, budgets, notifications, members, 
+            labels, companyDocs, essentialDocs 
+        });
     } catch (e: any) {
         res.status(500).json({ error: e.message });
     }

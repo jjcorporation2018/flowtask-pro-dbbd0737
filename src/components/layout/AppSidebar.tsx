@@ -139,17 +139,23 @@ const AppSidebar = () => {
             <div className="flex flex-col gap-1">
               {!isCollapsed && <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-2 mb-1">Documentos Internos</span>}
 
-              <Link to="/documentacao" className={`flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors ${location.pathname === '/documentacao' ? 'bg-primary text-primary-foreground font-medium' : 'text-sidebar-foreground hover:bg-sidebar-accent'}`} title="Gestão de Documentos">
-                <FolderOpen className="h-4 w-4 shrink-0" /> {!isCollapsed && <span>Gestão de Documentos</span>}
-              </Link>
+              {hasScreenAccess('DOCUMENTATION') && (
+                <Link to="/documentacao" className={`flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors ${location.pathname === '/documentacao' ? 'bg-primary text-primary-foreground font-medium' : 'text-sidebar-foreground hover:bg-sidebar-accent'}`} title="Gestão de Documentos">
+                  <FolderOpen className="h-4 w-4 shrink-0" /> {!isCollapsed && <span>Gestão de Documentos</span>}
+                </Link>
+              )}
 
-              <Link to="/documentacao/atestados" className={`flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors ${location.pathname === '/documentacao/atestados' ? 'bg-primary text-primary-foreground font-medium' : 'text-sidebar-foreground hover:bg-sidebar-accent'}`} title="Atestados de Capacidade Técnica">
-                <Briefcase className="h-4 w-4 shrink-0" /> {!isCollapsed && <span>Acervo Técnico</span>}
-              </Link>
+              {hasScreenAccess('DOCUMENTATION') && (
+                <>
+                  <Link to="/documentacao/atestados" className={`flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors ${location.pathname === '/documentacao/atestados' ? 'bg-primary text-primary-foreground font-medium' : 'text-sidebar-foreground hover:bg-sidebar-accent'}`} title="Atestados de Capacidade Técnica">
+                    <Briefcase className="h-4 w-4 shrink-0" /> {!isCollapsed && <span>Acervo Técnico</span>}
+                  </Link>
 
-              <Link to="/documentacao/modelos" className={`flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors ${location.pathname === '/documentacao/modelos' ? 'bg-primary text-primary-foreground font-medium' : 'text-sidebar-foreground hover:bg-sidebar-accent'}`} title="Modelos de Doc. Essenciais">
-                <FileText className="h-4 w-4 shrink-0" /> {!isCollapsed && <span>Modelos de Doc. Essenciais</span>}
-              </Link>
+                  <Link to="/documentacao/modelos" className={`flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors ${location.pathname === '/documentacao/modelos' ? 'bg-primary text-primary-foreground font-medium' : 'text-sidebar-foreground hover:bg-sidebar-accent'}`} title="Modelos de Doc. Essenciais">
+                    <FileText className="h-4 w-4 shrink-0" /> {!isCollapsed && <span>Modelos de Doc. Essenciais</span>}
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         ) : isAdminModule ? (
