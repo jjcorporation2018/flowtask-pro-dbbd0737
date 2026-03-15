@@ -49,7 +49,8 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
     addComment, startTimer, stopTimer, resetTimer,
     addLabel, updateLabel, deleteLabel,
     setUndoAction,
-    recentMilestoneTitles, addRecentMilestoneTitle, budgets, companies
+    recentMilestoneTitles, addRecentMilestoneTitle, budgets, companies,
+    fetchCardDetails
   } = useKanbanStore();
   const card = cards.find(c => c.id === cardId);
   const list = card ? lists.find(l => l.id === card.listId) : null;
@@ -145,6 +146,15 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
     }
     return () => clearInterval(intervalRef.current);
   }, [activeEntry]);
+
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+
+  useEffect(() => {
+    if (cardId) {
+      setIsLoadingDetails(true);
+      fetchCardDetails(cardId).finally(() => setIsLoadingDetails(false));
+    }
+  }, [cardId, fetchCardDetails]);
 
   if (!card) return null;
 
@@ -549,7 +559,12 @@ const CardDetailPanel = ({ cardId, onClose }: Props) => {
                 </button>
               </>
             )}
-            {card.attachments.length > 0 && (
+            {isLoadingDetails && (!card.attachments || card.attachments.length === 0) ? (
+              <div className="space-y-2">
+                <div className="h-10 bg-secondary animate-pulse rounded" />
+                <div className="h-10 bg-secondary animate-pulse rounded" />
+              </div>
+            ) : card.attachments.length > 0 && (
               <div className="space-y-1.5">
                 {card.attachments.map(att => (
                   <div key={att.id} className="flex items-center gap-2 bg-secondary rounded p-2 group">

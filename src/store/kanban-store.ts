@@ -97,6 +97,7 @@ interface KanbanState {
   stopTimer: (cardId: string) => void;
   resetTimer: (cardId: string) => void;
   fetchKanbanData: () => Promise<void>;
+  fetchCardDetails: (cardId: string) => Promise<void>;
   fetchNotifications: () => Promise<void>;
 
   // Members Sync
@@ -297,6 +298,19 @@ export const useKanbanStore = create<KanbanState>()(
           }
         } catch (error) {
           console.error("Failed to load Kanban data from DB:", error);
+        }
+      },
+
+      fetchCardDetails: async (cardId: string) => {
+        try {
+          const res = await api.get(`/kanban/cards/${cardId}`);
+          if (res.data) {
+            set(s => ({
+              cards: s.cards.map(c => c.id === cardId ? { ...c, ...res.data } : c)
+            }));
+          }
+        } catch (error) {
+          console.error(`Failed to load card details for ${cardId}:`, error);
         }
       },
 

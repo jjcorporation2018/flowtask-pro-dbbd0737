@@ -180,10 +180,31 @@ router.delete('/labels/:id', async (req: Request, res: Response) => {
 });
 
 // CARDS
+router.get('/cards/:id', async (req: Request, res: Response) => {
+    try {
+        const cardId = req.params.id as string;
+        const card = await prisma.card.findUnique({
+            where: { id: cardId },
+            include: { labels: true, checklist: true, comments: true, attachments: true, milestones: true, timeEntries: true }
+        });
+        if (!card) return res.status(404).json({ error: 'Card not found' });
+        
+        // Flatten labels
+        const formattedCard = {
+            ...card,
+            labels: (card as any).labels?.map((l: any) => l.labelId) || []
+        };
+        
+        res.json(formattedCard);
+    } catch (e: any) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 router.get('/cards', async (req: Request, res: Response) => {
     try {
         const cards = await prisma.card.findMany({
-            include: { labels: true, checklist: true, comments: true, attachments: true, milestones: true }
+            include: { labels: true, checklist: true, milestones: true }
         });
         res.json(cards);
     } catch (e: any) {
@@ -569,7 +590,8 @@ router.get('/sync', async (req: Request, res: Response) => {
             prisma.board.findMany(),
             prisma.kanbanList.findMany(),
             prisma.card.findMany({
-                include: { labels: true, checklist: true, comments: true, attachments: true, milestones: true, timeEntries: true }
+                // Exclude heavy fields for initial sync: comments and attachments
+                include: { labels: true, checklist: true, milestones: true, timeEntries: true }
             }),
             prisma.company.findMany(),
             prisma.mainCompanyProfile.findMany({ orderBy: { id: 'asc' } }),
@@ -602,7 +624,7 @@ router.get('/sync', async (req: Request, res: Response) => {
             prisma.taxObligation.findMany(),
             prisma.accountingSettings.findMany(),
             prisma.accountantExport.findMany(),
-            prisma.auditLog.findMany({ orderBy: { timestamp: 'desc' }, take: 1000 })
+            prisma.auditLog.findMany({ orderBy: { timestamp: 'desc' }, take: 100 })
         ]);
 
         const members = usersDb.map((u: any) => ({
