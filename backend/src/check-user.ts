@@ -18,7 +18,10 @@ async function main() {
     const allUsers = await prisma.user.findMany({
         where: { role: { notIn: ['disabled', 'pending'] } }
     });
-    console.log("Users in kanban sync:", allUsers.map(u => u.email).join(', '));
+    // Check documents
+    const docCount = await prisma.companyDocument.count();
+    const essentialCount = await prisma.essentialDocument.count();
+    console.log(`Documents count: Company=${docCount}, Essential=${essentialCount}`);
 }
 
 main().finally(() => prisma.$disconnect());
