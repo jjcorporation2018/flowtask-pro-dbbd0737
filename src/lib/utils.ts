@@ -8,13 +8,20 @@ export function cn(...inputs: ClassValue[]) {
 export function fixDateToBRT(dateStr: string | null | undefined): Date | null {
     if (!dateStr) return null;
     
-    if (typeof dateStr === 'string' && dateStr.length === 10) {
+    // If it's just a date YYYY-MM-DD, force 12:00 to avoid UTC shifts to previous day
+    if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
         return new Date(`${dateStr}T12:00:00`);
     }
 
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return null;
 
-    d.setMinutes(d.getMinutes() + d.getTimezoneOffset());
+    // For ISO strings that might have 'Z' or offset, we want to treat them as local date
+    // if they represent a full day (midnight). 
+    // This neutralizes the "one day off" issue when parsing UTC dates in local time.
+    if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0) {
+        return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 12, 0, 0);
+    }
+
     return d;
 }

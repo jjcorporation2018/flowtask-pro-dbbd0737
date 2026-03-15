@@ -127,13 +127,9 @@ const Dashboard = () => {
     futureLimit.setDate(today.getDate() + 10);
     futureLimit.setHours(23, 59, 59, 999);
 
-    const safeDateObject = (dateParam: any) => {
-      if (!dateParam) return new Date(0); // Return 1970-01-01 if missing
-      const str = typeof dateParam === 'string' ? dateParam : new Date(dateParam).toISOString();
-      const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
-      if (!match) return new Date(dateParam);
-      const [, y, m, d] = match;
-      return new Date(parseInt(y), parseInt(m) - 1, parseInt(d, 10));
+    const fixDate = (d: any) => {
+      const date = fixDateToBRT(d);
+      return date || new Date(0);
     };
 
     const events: { id: string; title: string; date: Date; type: string; color: string; icon: React.ElementType; url?: string }[] = [];
@@ -143,7 +139,7 @@ const Dashboard = () => {
       upcomingCards.forEach(c => {
         if (c.dueDate) {
           const list = activeLists.find(l => l.id === c.listId);
-          const cDate = safeDateObject(c.dueDate);
+          const cDate = fixDate(c.dueDate);
           const isOverdue = cDate < today;
           // Only add if date is valid (not 1970)
           if (cDate.getTime() > 0) {
@@ -165,42 +161,49 @@ const Dashboard = () => {
 
     // 3. Documents
     if (canDocs) {
-      documents.filter(d => d.expirationDate && !d.trashed && safeDateObject(d.expirationDate) <= futureLimit).forEach(d => {
-        const dDate = safeDateObject(d.expirationDate);
+      documents.filter(d => d.expirationDate && !d.trashed && fixDate(d.expirationDate) <= futureLimit).forEach(d => {
+        const dDate = fixDate(d.expirationDate);
         const isOverdue = dDate < today;
-        events.push({ 
-          id: d.id, 
-          title: isOverdue ? `[VENCIDO] Doc: ${d.title}` : `Doc Expirando: ${d.title}`, 
-          date: dDate, 
-          type: 'documento', 
-          color: isOverdue ? 'text-red-500 font-bold bg-red-500/10 px-1 rounded animate-pulse' : 'text-yellow-500', 
-          icon: isOverdue ? AlertCircle : FileText, 
-          url: '/documentacao' 
-        });
+        if (dDate.getTime() > 0) {
+          events.push({ 
+            id: d.id, 
+            title: isOverdue ? `[VENCIDO] Doc: ${d.title}` : `Doc Expirando: ${d.title}`, 
+            date: dDate, 
+            type: 'documento', 
+            color: isOverdue ? 'text-red-500 font-bold bg-red-500/10 px-1 rounded animate-pulse' : 'text-yellow-500', 
+            icon: isOverdue ? AlertCircle : FileText, 
+            url: '/documentacao' 
+          });
+        }
       });
     }
 
     // 4. Accounting (Tax Obligations)
     if (canAccounting) {
-      taxObligations.filter(t => !t.trashedAt && t.status === 'pending' && safeDateObject(t.dueDate) <= futureLimit).forEach(t => {
-        const tDate = safeDateObject(t.dueDate);
+      taxObligations.filter(t => !t.trashedAt && t.status === 'pending' && fixDate(t.dueDate) <= futureLimit).forEach(t => {
+        const tDate = fixDate(t.dueDate);
         const isOverdue = tDate < today;
-        events.push({ 
-          id: t.id, 
-          title: isOverdue ? `[VENCIDA] Guia: ${t.name}` : `Imposto a Pagar: ${t.name}`, 
-          date: tDate, 
-          type: 'contabil', 
-          color: isOverdue ? 'text-red-500 font-bold bg-red-500/10 px-1 rounded animate-pulse' : 'text-red-500', 
-          icon: isOverdue ? AlertCircle : PiggyBank, 
-          url: '/contabil' 
-        });
+        if (tDate.getTime() > 0) {
+          events.push({ 
+            id: t.id, 
+            title: isOverdue ? `[VENCIDA] Guia: ${t.name}` : `Imposto a Pagar: ${t.name}`, 
+            date: tDate, 
+            type: 'contabil', 
+            color: isOverdue ? 'text-red-500 font-bold bg-red-500/10 px-1 rounded animate-pulse' : 'text-red-500', 
+            icon: isOverdue ? AlertCircle : PiggyBank, 
+            url: '/contabil' 
+          });
+        }
       });
     }
 
     // 5. Google Calendar & Custom Events
-    googleEvents.filter(g => safeDateObject(g.date) >= today && safeDateObject(g.date) <= futureLimit).forEach(g => {
+    googleEvents.filter(g => fixDate(g.date) >= today && fixDate(g.date) <= futureLimit).forEach(g => {
       if (g.title && !g.title.startsWith('[Polaryon]')) {
-        events.push({ id: g.id, title: g.title, date: safeDateObject(g.date), type: 'google', color: 'text-purple-500', icon: CalendarIcon });
+        const gDate = fixDate(g.date);
+        if (gDate.getTime() > 0) {
+          events.push({ id: g.id, title: g.title, date: gDate, type: 'google', color: 'text-purple-500', icon: CalendarIcon });
+        }
       }
     });
 

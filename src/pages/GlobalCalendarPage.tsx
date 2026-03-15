@@ -181,29 +181,19 @@ export default function GlobalCalendarPage() {
         headerText = `${currentDate.getDate()} de ${monthNames[currentDate.getMonth()]} de ${currentDate.getFullYear()}`;
     }
 
-    const parseSafeDate = (dateParam: any) => {
-        if (!dateParam) return new Date(0); // Return 1970-01-01 if missing
-        if (typeof dateParam === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
-            const [y, m, d] = dateParam.split('-').map(Number);
-            return new Date(y, m - 1, d);
-        }
-        return new Date(dateParam);
-    };
-
-    const safeDateObject = (dateParam: any) => {
-        const d = parseSafeDate(dateParam);
-        if (isNaN(d.getTime())) return new Date(0);
-        return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const fixDate = (dateParam: any) => {
+        const d = fixDateToBRT(dateParam);
+        return d || new Date(0);
     };
 
     const safeDateMatch = (dateParam: any, targetStr: string) => {
         if (!dateParam) return false;
-        const d = parseSafeDate(dateParam);
-        if (isNaN(d.getTime()) || d.getTime() <= 0) return false;
-        return new Date(d.getFullYear(), d.getMonth(), d.getDate()).toDateString() === targetStr;
+        const d = fixDateToBRT(dateParam);
+        if (!d || d.getTime() <= 0) return false;
+        return d.toDateString() === targetStr;
     };
 
-    // Find upcoming cards (next 7 days)
+    // Find upcoming cards (next 10 days)
     const today = new Date();
     today.setHours(0, 0, 0, 0); // Reset today for comparison
     const nextLimit = new Date(today);
@@ -215,7 +205,7 @@ export default function GlobalCalendarPage() {
 
         // Check main due date
         if (c.dueDate) {
-            const d = safeDateObject(c.dueDate);
+            const d = fixDate(c.dueDate);
             if (d.getTime() > 0 && d >= today && d <= nextLimit) return true;
         }
 
@@ -223,15 +213,15 @@ export default function GlobalCalendarPage() {
         if (c.milestones) {
             return c.milestones.some(m => {
                 if (!m.dueDate) return false;
-                const d = safeDateObject(m.dueDate);
+                const d = fixDate(m.dueDate);
                 return d.getTime() > 0 && d >= today && d <= nextLimit && !m.completed;
             });
         }
 
         return false;
     }).sort((a, b) => {
-        const dateA = a.dueDate ? safeDateObject(a.dueDate).getTime() : 9999999999999;
-        const dateB = b.dueDate ? safeDateObject(b.dueDate).getTime() : 9999999999999;
+        const dateA = a.dueDate ? fixDate(a.dueDate).getTime() : 9999999999999;
+        const dateB = b.dueDate ? fixDate(b.dueDate).getTime() : 9999999999999;
         return dateA - dateB;
     }).slice(0, 10);
 
@@ -242,7 +232,7 @@ export default function GlobalCalendarPage() {
         // Use the already filtered and sliced upcomingCards
         upcomingCards.forEach(c => {
             if (c.dueDate) {
-                const d = safeDateObject(c.dueDate);
+                const d = fixDate(c.dueDate);
                 if (d.getTime() > 0) {
                     events.push({ id: c.id, title: `Tarefa: ${c.title}`, date: d, type: 'tarefa' });
                 }
@@ -251,26 +241,26 @@ export default function GlobalCalendarPage() {
 
         documents.filter(d => {
             if (d.trashed || !d.expirationDate) return false;
-            const dDate = safeDateObject(d.expirationDate);
+            const dDate = fixDate(d.expirationDate);
             return dDate.getTime() > 0 && dDate >= today && dDate <= nextLimit;
         }).forEach(d => {
-            events.push({ id: d.id, title: `Doc Expirando: ${d.title}`, date: safeDateObject(d.expirationDate), type: 'documento' });
+            events.push({ id: d.id, title: `Doc Expirando: ${d.title}`, date: fixDate(d.expirationDate), type: 'documento' });
         });
 
         taxObligations.filter(t => {
             if (t.trashedAt || t.status !== 'pending' || !t.dueDate) return false;
-            const tDate = safeDateObject(t.dueDate);
+            const tDate = fixDate(t.dueDate);
             return tDate.getTime() > 0 && tDate >= today && tDate <= nextLimit;
         }).forEach(t => {
-            events.push({ id: t.id, title: `Imposto Pendente: ${t.name}`, date: safeDateObject(t.dueDate), type: 'contabil' });
+            events.push({ id: t.id, title: `Imposto Pendente: ${t.name}`, date: fixDate(t.dueDate), type: 'contabil' });
         });
 
         googleEvents.filter(g => {
-            const gDate = safeDateObject(g.date);
+            const gDate = fixDate(g.date);
             return gDate.getTime() > 0 && gDate >= today && gDate <= nextLimit;
         }).forEach(g => {
             if (g.title) {
-                events.push({ id: g.id, title: g.title, date: safeDateObject(g.date), type: 'google' });
+                events.push({ id: g.id, title: g.title, date: fixDate(g.date), type: 'google' });
             }
         });
 
