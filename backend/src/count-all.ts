@@ -9,28 +9,17 @@ const prisma = new PrismaClient({
 });
 
 async function main() {
-    const tables = [
-        'user', 'folder', 'board', 'kanbanList', 'card', 'company', 
-        'budget', 'notification', 'companyDocument', 'essentialDocument', 
-        'attachment', 'timeEntry', 'comment', 'milestone'
-    ];
-    
-    console.log("--- Table Counts ---");
-    for (const table of tables) {
-        try {
-            const count = await (prisma as any)[table].count();
-            console.log(`${table}: ${count}`);
-        } catch (e) {
-            console.log(`${table}: Error or Not Found`);
-        }
-    }
-    
-    try {
-        const cards = await prisma.card.findMany({ select: { title: true } });
-        console.log("Card titles:", cards.map(c => c.title).join(', '));
-    } catch (e) {
-        console.log("Error fetching cards");
-    }
+    console.log("--- MainCompanyProfile ---");
+    const mainComps = await prisma.mainCompanyProfile.findMany();
+    console.log(JSON.stringify(mainComps, null, 2));
+
+    console.log("--- Company (Contacts) ---");
+    const comps = await prisma.company.findMany();
+    console.log(JSON.stringify(comps, null, 2));
+
+    console.log("--- Card Attachments ---");
+    const attachments = await prisma.attachment.findMany();
+    console.log("Count:", attachments.length);
 }
 
 main().finally(() => prisma.$disconnect());
