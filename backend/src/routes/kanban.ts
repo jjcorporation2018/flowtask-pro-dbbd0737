@@ -636,7 +636,9 @@ router.get('/sync', async (req: Request, res: Response) => {
 
         const formattedCards = cards.map((c: any) => ({
             ...c,
-            labels: c.labels.map((l: any) => l.labelId) // flatten intersection table into string array
+            labels: (c.labels || []).map((l: any) => l.labelId), // flatten intersection table into string array
+            attachments: c.attachments || [],
+            comments: c.comments || []
         }));
 
         res.json({ 

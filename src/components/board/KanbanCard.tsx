@@ -15,8 +15,8 @@ const KanbanCardComponent = ({ card, listColor, onClick }: Props) => {
   const { currentUser } = useAuthStore();
   const cardLabels = labels.filter(l => card.labels.includes(l.id));
   const assignedMember = members.find(m => m.id === card.assignee);
-  const checkDone = card.checklist.filter(i => i.completed).length;
-  const checkTotal = card.checklist.length;
+  const checkDone = (card.checklist || []).filter(i => i.completed).length;
+  const checkTotal = (card.checklist || []).length;
   const isOverdue = card.dueDate && new Date(card.dueDate) < new Date() && !card.completed;
   const hasOverdueMilestone = card.milestones && card.milestones.some(m => !m.completed && m.dueDate && new Date(m.dueDate) < new Date());
 
@@ -93,9 +93,9 @@ const KanbanCardComponent = ({ card, listColor, onClick }: Props) => {
               <Clock className="h-2.5 w-2.5" /> Atraso
             </span>
           )}
-          {card.milestones && card.milestones.length > 0 && !hasOverdueMilestone && (
-            <span className="flex items-center gap-0.5 text-[10px] text-blue-500 bg-blue-500/10 px-1 py-0.5 rounded font-bold" title={`${card.milestones.filter(m => m.completed).length}/${card.milestones.length} etapas concluídas`}>
-              <CheckSquare className="h-2.5 w-2.5" /> {card.milestones.filter(m => m.completed).length}/{card.milestones.length}
+          {(card.milestones?.length || 0) > 0 && !hasOverdueMilestone && (
+            <span className="flex items-center gap-0.5 text-[10px] text-blue-500 bg-blue-500/10 px-1 py-0.5 rounded font-bold" title={`${card.milestones?.filter(m => m.completed).length || 0}/${card.milestones?.length || 0} etapas concluídas`}>
+              <CheckSquare className="h-2.5 w-2.5" /> {card.milestones?.filter(m => m.completed).length || 0}/{card.milestones?.length || 0}
             </span>
           )}
           {checkTotal > 0 && (
@@ -104,16 +104,16 @@ const KanbanCardComponent = ({ card, listColor, onClick }: Props) => {
               {checkDone}/{checkTotal}
             </span>
           )}
-          {card.comments.length > 0 && (
+          {(card.comments?.length || 0) > 0 && (
             <span className="flex items-center gap-0.5 text-[10px] text-foreground/70 font-bold">
               <MessageSquare className="h-2.5 w-2.5" />
-              {card.comments.length}
+              {card.comments?.length}
             </span>
           )}
-          {card.attachments.length > 0 && (
+          {(card.attachments?.length || 0) > 0 && (
             <span className="flex items-center gap-0.5 text-[10px] text-foreground/70 font-bold">
               <Paperclip className="h-2.5 w-2.5" />
-              {card.attachments.length}
+              {card.attachments?.length}
             </span>
           )}
           {card.timeEntries.length > 0 && (

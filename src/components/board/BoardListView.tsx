@@ -123,14 +123,14 @@ export const BoardListView = ({ boardId, onCardClick, sortBy }: Props) => {
                                                 </td>
                                                 <td className="px-4 py-3 text-right">
                                                     <div className="flex items-center justify-end gap-3 text-muted-foreground text-xs">
-                                                        {card.attachments.length > 0 && (
-                                                            <span className="flex items-center gap-1"><Paperclip className="h-3.5 w-3.5" /> {card.attachments.length}</span>
+                                                        {(card.attachments?.length || 0) > 0 && (
+                                                            <span className="flex items-center gap-1"><Paperclip className="h-3.5 w-3.5" /> {card.attachments?.length}</span>
                                                         )}
-                                                        {card.comments.length > 0 && (
-                                                            <span className="flex items-center gap-1"><MessageSquare className="h-3.5 w-3.5" /> {card.comments.length}</span>
+                                                        {(card.comments?.length || 0) > 0 && (
+                                                            <span className="flex items-center gap-1"><MessageSquare className="h-3.5 w-3.5" /> {card.comments?.length}</span>
                                                         )}
                                                         {(card.checklist?.length || 0) > 0 && (
-                                                            <span className="flex items-center gap-1"><CheckSquare className="h-3.5 w-3.5" /> {card.checklist!.filter(i => i.completed).length}/{card.checklist!.length}</span>
+                                                            <span className="flex items-center gap-1"><CheckSquare className="h-3.5 w-3.5" /> {card.checklist?.filter(i => i.completed).length || 0}/{card.checklist?.length || 0}</span>
                                                         )}
                                                     </div>
                                                 </td>
